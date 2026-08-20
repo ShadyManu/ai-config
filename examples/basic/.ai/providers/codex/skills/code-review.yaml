@@ -1,0 +1,4 @@
+schema: 1
+options:
+  policy:
+    allow_implicit_invocation: false

@@ -1,0 +1,25 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "types": ["node"],
+    // Vitest loads tests as ES modules regardless of each package's own output
+    // format, so they are typechecked the way they actually run.
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "paths": {
+      "@aiconfig/core": ["./packages/core/src/index.ts"],
+      "@aiconfig/core/testing": ["./packages/core/src/testing/index.ts"],
+      "@aiconfig/agents-md": ["./packages/agents-md/src/index.ts"],
+      "@aiconfig/adapter-claude": ["./packages/adapter-claude/src/index.ts"],
+      "@aiconfig/adapter-codex": ["./packages/adapter-codex/src/index.ts"],
+      "@aiconfig/adapter-copilot": ["./packages/adapter-copilot/src/index.ts"],
+      "@aiconfig/adapter-opencode": ["./packages/adapter-opencode/src/index.ts"],
+      "@aiconfig/providers": ["./packages/providers/src/index.ts"]
+    }
+  },
+  "include": ["packages/*/test/**/*.ts", "test/**/*.ts", "vitest.config.ts"]
+}

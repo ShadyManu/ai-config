@@ -1,0 +1,39 @@
+{
+  "name": "ai-config-workspace",
+  "version": "1.3.0",
+  "private": true,
+  "description": "Define your AI coding configuration once and keep Claude Code, Codex, GitHub Copilot, and OpenCode automatically synchronized.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ShadyManu/ai-config.git"
+  },
+  "engines": {
+    "node": ">=20.10.0"
+  },
+  "packageManager": "pnpm@11.21.0",
+  "scripts": {
+    "build": "tsc -b && pnpm --filter @aiconfig/cli run build && pnpm --filter ai-config run build",
+    "typecheck": "tsc -b --force && tsc -p tsconfig.test.json",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:vscode": "pnpm --filter ai-config run test",
+    "package": "pnpm run build && pnpm --filter ai-config run package",
+    "clean": "tsc -b --clean && node -e \"require('node:fs').rmSync('apps/vscode/dist',{recursive:true,force:true})\"",
+    "version:cli": "node scripts/set-version.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "24.x",
+    "@typescript-eslint/utils": "^8.61.1",
+    "esbuild": "^0.28.1",
+    "eslint": "^10.5.0",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.9.6",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.61.1",
+    "vitest": "^3.2.4"
+  }
+}

@@ -1,0 +1,16 @@
+.vscode/**
+.vscode-test/**
+out/**
+node_modules/**
+src/**
+esbuild.js
+tsconfig.json
+tsconfig.test.json
+.vscode-test.mjs
+**/*.map
+**/*.ts
+**/tsconfig.tsbuildinfo
+dist/tsc/**
+
+# Source for resources/icon.png, kept in the repository but not shipped.
+resources/icon.svg

@@ -1,0 +1,53 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "watch",
+      "dependsOn": ["tsc: build workspace", "npm: watch - apps/vscode"],
+      "dependsOrder": "sequence",
+      "presentation": {
+        "reveal": "never"
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "tsc: build workspace",
+      "type": "shell",
+      "command": "pnpm exec tsc -b",
+      "group": "build",
+      "problemMatcher": "$tsc",
+      "presentation": {
+        "reveal": "silent",
+        "group": "watch"
+      }
+    },
+    {
+      "type": "npm",
+      "script": "watch",
+      "path": "apps/vscode",
+      "group": "build",
+      "problemMatcher": "$esbuild-watch",
+      "isBackground": true,
+      "label": "npm: watch - apps/vscode",
+      "presentation": {
+        "reveal": "never",
+        "group": "watch"
+      }
+    },
+    {
+      "type": "npm",
+      "script": "pretest",
+      "path": "apps/vscode",
+      "group": "test",
+      "problemMatcher": "$tsc",
+      "label": "npm: pretest - apps/vscode",
+      "presentation": {
+        "reveal": "silent"
+      }
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+packages:
+  - packages/*
+  - apps/*
+
+allowBuilds:
+  esbuild: true
+  # Both are @vscode/vsce dependencies used only when publishing to the
+  # Marketplace (signing and credential storage). This repository never
+  # publishes, and `vsce package` does not need either, so their native build
+  # scripts stay disabled.
+  '@vscode/vsce-sign': false
+  keytar: false

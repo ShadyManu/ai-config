@@ -1,0 +1,26 @@
+# Not authored here.
+node_modules
+dist
+out
+**/.vscode-test/
+apps/vscode/.vscode-test/
+pnpm-lock.yaml
+
+# Byte-exact expected provider output. These files are assertions, not source:
+# reformatting one silently changes what the fixture tests claim the adapters
+# emit.
+packages/*/test/fixtures/
+
+# The input side of the same contract. `examples/basic/.ai/` is copied verbatim
+# by the end-to-end tests, and its content is embedded in generated files, so
+# reformatting it changes provider output.
+examples/
+
+# Markdown is hand-wrapped, and the code samples in `docs/` are aligned for
+# readability rather than by a formatter.
+*.md
+
+# AI Config's own generated output when this repository is synchronized against
+# itself. The manifest records a hash of every file it wrote, so reformatting
+# one would register as drift and block the next sync.
+.ai/.generated.json

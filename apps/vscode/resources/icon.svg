@@ -1,0 +1,35 @@
+<!--
+  Source for resources/icon.png, the Marketplace icon. The Marketplace rejects
+  SVG, so this file is rasterized to a 128x128 PNG; keep both in sync.
+
+  Same mark as resources/aiconfig.svg (the activity bar icon), which must stay
+  monochrome `currentColor` to follow the editor theme. This one carries the
+  colour and the background plate the Marketplace needs.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="plate" x1="0" y1="0" x2="128" y2="128" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4F46E5" />
+      <stop offset="1" stop-color="#1E1B4B" />
+    </linearGradient>
+  </defs>
+
+  <rect width="128" height="128" rx="26" fill="url(#plate)" />
+
+  <g
+    transform="translate(7.24 6.41) scale(4.8)"
+    fill="none"
+    stroke="#EEF2FF"
+    stroke-width="1.7"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <path d="M6 12h11.4" />
+    <path d="M11 12c3 0 3-6.5 6.4-6.5" />
+    <path d="M11 12c3 0 3 6.5 6.4 6.5" />
+    <circle cx="4" cy="12" r="1.8" fill="#FFFFFF" stroke="none" />
+    <circle cx="19" cy="5.5" r="1.6" stroke="#A5B4FC" />
+    <circle cx="19" cy="12" r="1.6" stroke="#A5B4FC" />
+    <circle cx="19" cy="18.5" r="1.6" stroke="#A5B4FC" />
+  </g>
+</svg>

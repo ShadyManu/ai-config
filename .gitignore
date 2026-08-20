@@ -1,0 +1,19 @@
+node_modules
+dist
+out
+*.tsbuildinfo
+.vscode-test/
+*.vsix
+*.tgz
+
+# Provider output produced by running AI Config against an example repository
+# during manual development. Only the canonical `.ai/` sources are checked in.
+# Anchored to `examples/` on purpose: the same names at the repository root are
+# this project's own configuration and must stay tracked.
+/examples/*/.ai/.generated.json
+/examples/*/.agents/
+/examples/*/.claude/
+/examples/*/.codex/
+/examples/*/.github/
+/examples/*/.opencode/
+/examples/*/AGENTS.md

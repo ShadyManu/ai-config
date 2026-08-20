@@ -1,0 +1,14 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/core" },
+    { "path": "packages/agents-md" },
+    { "path": "packages/adapter-claude" },
+    { "path": "packages/adapter-codex" },
+    { "path": "packages/adapter-copilot" },
+    { "path": "packages/adapter-opencode" },
+    { "path": "packages/providers" },
+    { "path": "packages/cli" },
+    { "path": "apps/vscode" }
+  ]
+}

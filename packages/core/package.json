@@ -1,0 +1,29 @@
+{
+  "name": "@aiconfig/core",
+  "version": "1.3.0",
+  "private": true,
+  "description": "Canonical .ai configuration model, parser, validator and synchronization engine.",
+  "license": "MIT",
+  "type": "commonjs",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing/index.d.ts",
+      "default": "./dist/testing/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "yaml": "^2.8.1"
+  }
+}

@@ -1,0 +1,6 @@
+schema: 1
+options:
+  temperature: 0.1
+  permission:
+    edit: deny
+    bash: ask

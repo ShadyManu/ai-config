@@ -1,0 +1,8 @@
+schema: 1
+options:
+  tools:
+    - Read
+    - Grep
+    - Glob
+  model: sonnet
+  permissionMode: plan

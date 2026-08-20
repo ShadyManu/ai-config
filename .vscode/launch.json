@@ -1,0 +1,24 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run Extension",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": ["--extensionDevelopmentPath=${workspaceFolder}/apps/vscode"],
+      "outFiles": ["${workspaceFolder}/apps/vscode/dist/**/*.js"],
+      "preLaunchTask": "${defaultBuildTask}"
+    },
+    {
+      "name": "Extension Tests",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}/apps/vscode",
+        "--extensionTestsPath=${workspaceFolder}/apps/vscode/out/test/index"
+      ],
+      "outFiles": ["${workspaceFolder}/apps/vscode/out/**/*.js"],
+      "preLaunchTask": "npm: pretest - apps/vscode"
+    }
+  ]
+}

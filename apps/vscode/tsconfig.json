@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist/tsc",
+    "types": ["node", "vscode"],
+    "noEmit": false
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/test/**/*.ts"],
+  "references": [{ "path": "../../packages/core" }, { "path": "../../packages/providers" }]
+}
