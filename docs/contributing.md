@@ -214,7 +214,7 @@ works. The **AI Config** output channel logs every load, sync and write.
 ## Releasing
 
 The CLI and the extension go out to different registries but carry **one version
-number**, and are released together under a single tag: `vX.Y.Z`.
+number**. A successful release is recorded by the automated `vX.Y.Z` tag.
 
 They are versioned in lockstep because each bundles its own copy of the same
 compiler — neither resolves it at runtime. Two versions installed against one
@@ -244,20 +244,20 @@ being shipped.
 
 Push the release through a pull request. CI runs formatting, typechecking,
 linting, unit tests, extension integration tests, the dependency audit, and both
-packagers. The Release workflow performs the same dry run without registry
-credentials, so repeated fixes on the release branch publish nothing.
+packagers. Repeated fixes on the release branch publish nothing.
 
-After the pull request is merged, create and push the matching tag:
+Merging the pull request into `main` starts `.github/workflows/release.yml`. It
+validates that all manifests agree and checks for the matching `vX.Y.Z` tag. If
+the tag already exists, there is nothing to publish. Otherwise it rebuilds and
+tests the exact commit on `main`, creates the CLI tarball and VSIX once, then
+publishes those immutable artifacts in separate jobs to npm, the Visual Studio
+Marketplace and Open VSX. The tag is created automatically only after every
+registry succeeds.
 
-```sh
-git tag -a vX.Y.Z -m "AI Config X.Y.Z"
-git push origin vX.Y.Z
-```
-
-The tag starts `.github/workflows/release.yml`. It validates that the tag and
-all manifests agree, builds the CLI tarball and VSIX once, then publishes those
-immutable artifacts in separate jobs to npm, the Visual Studio Marketplace and
-Open VSX. If one registry fails, rerun only its failed job.
+Publishing is idempotent: npm is queried for the exact package version, while
+both extension registries skip an existing version. If a registry fails, rerun
+the failed workflow without changing the version; the completed registries are
+skipped and the missing publication is retried.
 
 Verify against the registries rather than the working tree, since that is what
 a user gets:
@@ -300,4 +300,4 @@ npx ovsx create-namespace aiconfig # first release only
 
 Configure npm's trusted publisher for repository `ShadyManu/ai-config` and
 workflow filename `release.yml`. Registry credentials are available only to the
-tag-triggered publishing jobs; pull requests and manual dry runs cannot publish.
+workflow triggered by a push to `main`; pull requests cannot publish.

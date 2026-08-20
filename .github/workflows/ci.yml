@@ -1,8 +1,8 @@
 name: CI
 
 on:
-  push:
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -53,3 +53,11 @@ jobs:
 
       - name: Package release artifacts
         run: pnpm package
+
+      - name: Pack CLI
+        run: |
+          mkdir -p release
+          npm pack ./packages/cli --pack-destination ./release
+
+      - name: Validate npm package
+        run: npm publish ./release/aiconfig-cli-*.tgz --access public --dry-run

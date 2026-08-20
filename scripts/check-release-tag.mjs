@@ -1,6 +1,6 @@
 /**
- * Refuses to publish when the Git tag and the public package versions differ.
- * Passing an empty tag performs the same consistency checks for a dry run.
+ * Refuses to publish when public package versions differ. When a Git tag is
+ * supplied, it must also match those versions.
  */
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -36,6 +36,6 @@ if (releaseTag !== '' && releaseTag !== `v${expectedVersion}`) {
 
 console.log(
   releaseTag === ''
-    ? `Dry run validated release ${expectedVersion}.`
+    ? `Validated aligned release version ${expectedVersion}.`
     : `Validated ${releaseTag} against every public package manifest.`,
 );
