@@ -177,7 +177,7 @@ jobs:
             echo "::error::The VSCE_PAT repository secret is not configured."
             exit 1
           fi
-          npx --yes @vscode/vsce@3.9.0 publish --packagePath ./release-packages/ai-config.vsix --skip-duplicate
+          npx --yes @vscode/vsce@3.9.2 publish --packagePath ./release-packages/ai-config.vsix --skip-duplicate
 
   publish-open-vsx:
     name: Publish extension to Open VSX
