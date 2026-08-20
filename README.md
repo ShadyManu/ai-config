@@ -6,13 +6,15 @@ AI Config keeps configuration for Claude Code, OpenAI Codex, GitHub Copilot, and
 
 You do not need to know any provider's configuration format to use it.
 
+[Watch the introductory video on YouTube](https://www.youtube.com/watch?v=1dwmBAFaYTM).
+
 ## Getting started
 
 ### VS Code
 
 1. Install the AI Config extension.
 2. Run **AI Config: Initialize Project** and choose your assistants.
-3. Use the **Add** menu in the AI Config sidebar: **Add Instruction**, **Add Agent**, **Add Skill**, **Add Command**. Each one asks for a name.
+3. Use the **Add** menu in the AI Config sidebar: **Add Agent**, **Add Command**, **Add Instruction**, **Add Skill**. Each one asks for a name.
 4. Optionally choose which provider-specific settings to include, or add them later with **Add Provider Override…** on any artifact.
 5. AI Config scaffolds valid source files and opens them; write the description, prompt, instructions and provider values in the editor.
 6. AI Config synchronizes after a valid change; **AI Config: Synchronize** runs it on demand.
@@ -32,12 +34,12 @@ aiconfig sync
 
 ```
 .ai/
-├── config.yaml            which providers are enabled
-├── instructions/          rules that are always in context
 ├── agents/                specialist helpers
-├── skills/                procedures loaded on demand
 ├── commands/              prompts you invoke explicitly
-└── providers/             optional provider-specific refinements
+├── instructions/          rules that are always in context
+├── providers/             optional provider-specific refinements
+├── skills/                procedures loaded on demand
+└── config.yaml            which providers are enabled
 ```
 
 A **portable artifact** holds only fields that mean the same thing everywhere, and is compiled to every enabled provider. A **provider refinement** at `.ai/providers/<provider>/<kind>/<id>.yaml` holds only settings specific to one assistant, never repeats a canonical field, and never changes which providers an artifact reaches.
@@ -112,6 +114,10 @@ v1 does not import or merge existing provider configuration, and does not genera
 - [Provider capabilities](docs/provider-capabilities.md)
 - [Provider overlays](docs/provider-overlays.md)
 - [Architecture](docs/architecture.md) and [contributing](docs/contributing.md)
+
+## Support
+
+Found a bug or have a suggestion? [Open an issue on GitHub](https://github.com/ShadyManu/ai-config/issues).
 
 ## License
 

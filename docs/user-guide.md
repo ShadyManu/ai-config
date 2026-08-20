@@ -67,12 +67,12 @@ aiconfig sync
 
 ```
 .ai/
-├── config.yaml            which providers are enabled
-├── instructions/          rules that are always in context
 ├── agents/                specialist helpers
-├── skills/                procedures loaded on demand
 ├── commands/              prompts you invoke explicitly
-└── providers/             optional provider-specific refinements
+├── instructions/          rules that are always in context
+├── providers/             optional provider-specific refinements
+├── skills/                procedures loaded on demand
+└── config.yaml            which providers are enabled
 ```
 
 There are exactly two kinds of file:

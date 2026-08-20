@@ -1,11 +1,11 @@
 /**
- * Sets the CLI version everywhere it is declared.
+ * Sets the release version everywhere it is declared.
  *
- * The version lives in two files: npm publishes what `package.json` says, and
- * `aiconfig --version` prints the constant. Editing one and forgetting the
- * other ships a CLI that misreports itself, and npm does not allow a published
- * version number to be corrected — only replaced by a new one. `version.test.ts`
- * fails when they disagree; this script is how they are kept in step.
+ * The CLI and extension are released in lockstep because both bundle the same
+ * compiler. The workspace manifest records the project release, npm publishes
+ * the CLI manifest, `aiconfig --version` prints the source constant, and the VS
+ * Code Marketplace publishes the extension manifest. This script keeps all
+ * four declarations in step.
  *
  * Usage: node scripts/set-version.mjs 1.2.0
  */
@@ -24,8 +24,12 @@ Expected a semantic version such as 1.2.0, received: ${version ?? '(nothing)'}`)
   process.exit(2);
 }
 
-const manifestPath = path.join(repositoryRoot, 'packages', 'cli', 'package.json');
 const sourcePath = path.join(repositoryRoot, 'packages', 'cli', 'src', 'version.ts');
+const manifestPaths = [
+  path.join(repositoryRoot, 'package.json'),
+  path.join(repositoryRoot, 'packages', 'cli', 'package.json'),
+  path.join(repositoryRoot, 'apps', 'vscode', 'package.json'),
+];
 
 // The source is checked before the manifest is touched. Writing one and then
 // failing on the other leaves exactly the mismatch this script exists to
@@ -37,13 +41,23 @@ if (!declaration.test(source)) {
   process.exit(1);
 }
 
-const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
-const previous = manifest.version;
-manifest.version = version;
-writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+const manifests = manifestPaths.map((manifestPath) => {
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+  if (typeof manifest.version !== 'string' || !SEMVER.test(manifest.version)) {
+    console.error(`Could not find a semantic version in ${manifestPath}.`);
+    process.exit(1);
+  }
+  return { manifestPath, manifest, previous: manifest.version };
+});
+
+for (const { manifestPath, manifest } of manifests) {
+  manifest.version = version;
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+}
 writeFileSync(sourcePath, source.replace(declaration, `export const VERSION = '${version}';`));
 
-console.log(`@aiconfig/cli ${previous} -> ${version}`);
-console.log(
-  `Next: add a '## [${version}]' section to packages/cli/CHANGELOG.md, then run the tests.`,
-);
+for (const { manifestPath, previous } of manifests) {
+  console.log(`${path.relative(repositoryRoot, manifestPath)} ${previous} -> ${version}`);
+}
+console.log(`packages/cli/src/version.ts -> ${version}`);
+console.log(`Next: add a '## [${version}]' section to both public changelogs, then run the tests.`);

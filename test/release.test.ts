@@ -22,6 +22,10 @@ const readVersion = (manifest: string): string => {
 describe('release consistency', () => {
   const version = readVersion('packages/cli/package.json');
 
+  it('records the release version in the workspace manifest', () => {
+    expect(readVersion('package.json')).toBe(version);
+  });
+
   it('ships the extension under the same version as the CLI', () => {
     expect(readVersion('apps/vscode/package.json')).toBe(version);
   });
