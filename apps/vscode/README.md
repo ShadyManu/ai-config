@@ -16,6 +16,8 @@ of expressing it in each assistant's own conventions.
 Everything runs locally in your editor. No LLM, no network access, no account,
 no telemetry.
 
+[Watch the introductory video on YouTube](https://www.youtube.com/watch?v=1dwmBAFaYTM).
+
 ## Supported assistants
 
 - Claude Code
@@ -44,26 +46,23 @@ learn a YAML schema before starting.
 
 ```text
 .ai/
-├── instructions/
 ├── agents/
-├── skills/
 ├── commands/
-├── providers/
+├── instructions/
+├── skills/
 └── config.yaml
 ```
-
-**Instructions** — rules the assistant should always follow, either
-repository-wide or scoped to specific paths.
 
 **Agents** — reusable specialists you can delegate to, such as a reviewer, a
 backend coder or a test writer.
 
-**Skills** — reusable capabilities and workflows, with optional reference
-material, scripts and assets alongside them.
-
 **Commands** — explicit prompts you invoke yourself when you want them.
 
-**Providers** — optional provider-specific refinements for the artifacts above.
+**Instructions** — rules the assistant should always follow, either
+repository-wide or scoped to specific paths.
+
+**Skills** — reusable capabilities and workflows, with optional reference
+material, scripts and assets alongside them.
 
 `config.yaml` records which assistants are enabled. Everything under `.ai/` is
 yours to edit; AI Config only ever reads it and writes provider output.
@@ -205,7 +204,7 @@ under your control.
 
 ## Support
 
-Found a bug or have a suggestion? [Get in touch](https://manuelraso.dev/contacts).
+Found a bug or have a suggestion? [Open an issue on GitHub](https://github.com/ShadyManu/ai-config/issues).
 
 ## License
 

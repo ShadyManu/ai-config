@@ -6,7 +6,7 @@ import { MANIFEST_VERSION, SUPPORTED_SCHEMA_VERSION } from '@aiconfig/core';
 
 import {
   AiConfigTreeProvider,
-  CONTACT_URL,
+  SUPPORT_URL,
   DISABLED_PROVIDER_CONTEXT,
   DRIFTED_FILE_CONTEXT,
   ENABLED_PROVIDER_CONTEXT,
@@ -173,11 +173,11 @@ suite('AI Config tree view', () => {
     assert.ok(contact);
 
     const item = tree.getTreeItem(contact);
-    assert.equal(item.label, 'Found a bug or have a suggestion? Get in touch →');
+    assert.equal(item.label, 'Found a bug or have a suggestion? Open GitHub Issues →');
     assert.equal(item.iconPath instanceof vscode.ThemeIcon, true);
     assert.equal((item.iconPath as vscode.ThemeIcon).id, 'arrow-right');
     assert.equal(item.command?.command, 'vscode.open');
-    assert.equal(String(item.command?.arguments?.[0]), CONTACT_URL);
+    assert.equal(String(item.command?.arguments?.[0]), SUPPORT_URL);
 
     tree.dispose();
   });

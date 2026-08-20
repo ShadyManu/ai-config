@@ -10,6 +10,20 @@ its own copy of the same compiler. Two different versions in one repository
 would emit different files from the same `.ai/`, and each would read the other's
 output as drift. The shared number is what says which compiler you are running.
 
+## [1.3.1] - 2026-08-20
+
+### Changed
+
+- Lowered the minimum VS Code API requirement from 1.125 to 1.107, enabling
+  installation in Google Antigravity and other compatible VS Code-based
+  editors. The extension is compiled against the 1.107 API type definitions to
+  prevent accidental use of newer APIs.
+- The Marketplace README now presents the canonical directories in the same
+  alphabetical order as the sidebar, links to the introductory video, and
+  directs support to GitHub Issues.
+- The welcome view and sidebar support link now open GitHub Issues instead of a
+  generic contact page.
+
 ## [1.3.0] - 2026-08-20
 
 First release of the extension, numbered with the project rather than from

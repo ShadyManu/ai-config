@@ -214,7 +214,7 @@ works. The **AI Config** output channel logs every load, sync and write.
 ## Releasing
 
 The CLI and the extension go out to different registries but carry **one version
-number**, and are released together under a single tag: `v1.2.0`.
+number**. A successful release is recorded by the automated `vX.Y.Z` tag.
 
 They are versioned in lockstep because each bundles its own copy of the same
 compiler — neither resolves it at runtime. Two versions installed against one
@@ -231,38 +231,39 @@ higher one, so the tests below run before publishing rather than after.
 
 ### `@aiconfig/cli`
 
-The version is declared twice — in `package.json`, which is what npm publishes,
-and as `VERSION` in `src/version.ts`, which is what `aiconfig --version` prints.
-Set both with:
+The release version is declared in the workspace manifest, both published
+manifests, and as `VERSION` in the CLI source. Set all four with:
 
 ```sh
-pnpm version:cli 1.2.0
+pnpm version:release X.Y.Z
 ```
 
-Then add a `## [1.2.0]` section to `packages/cli/CHANGELOG.md`. `version.test.ts`
-fails if either the two declarations disagree or the changelog has no section
-for the version being shipped.
+Then add a `## [X.Y.Z]` section to both public changelogs. The release tests fail
+if any declaration disagrees or either changelog has no section for the version
+being shipped.
 
-```sh
-pnpm typecheck && pnpm lint && pnpm test
-git commit -am "chore: release cli 1.2.0" && git push
-pnpm publish --filter @aiconfig/cli --access public
-```
+Push the release through a pull request. CI runs formatting, typechecking,
+linting, unit tests, extension integration tests, the dependency audit, and both
+packagers. Repeated fixes on the release branch publish nothing.
 
-`pnpm publish` refuses to run with a dirty tree or a branch behind its remote,
-and `prepack` rebuilds the bundle. Verify against the registry rather than the
-working tree, since that is what a user gets:
+Merging the pull request into `main` starts `.github/workflows/release.yml`. It
+validates that all manifests agree and checks for the matching `vX.Y.Z` tag. If
+the tag already exists, there is nothing to publish. Otherwise it rebuilds and
+tests the exact commit on `main`, creates the CLI tarball and VSIX once, then
+publishes those immutable artifacts in separate jobs to npm, the Visual Studio
+Marketplace and Open VSX. The tag is created automatically only after every
+registry succeeds.
+
+Publishing is idempotent: npm is queried for the exact package version, while
+both extension registries skip an existing version. If a registry fails, rerun
+the failed workflow without changing the version; the completed registries are
+skipped and the missing publication is retried.
+
+Verify against the registries rather than the working tree, since that is what
+a user gets:
 
 ```sh
 npx @aiconfig/cli@latest --version
-```
-
-When a release needs proving first, publish it under a tag so it does not become
-`latest`, then promote it:
-
-```sh
-pnpm publish --filter @aiconfig/cli --access public --tag next
-npm dist-tag add @aiconfig/cli@1.2.0 latest
 ```
 
 A broken version can be removed within 72 hours with `npm unpublish`; that
@@ -271,17 +272,13 @@ marked with `npm deprecate` and superseded.
 
 ### The extension
 
-`apps/vscode/package.json` holds the only copy of the version, and it must match
-the one the CLI was just published under. Update it and
-`apps/vscode/CHANGELOG.md`; `test/release.test.ts` fails if the two manifests
-disagree or the extension changelog has no section for the version being
-shipped. Then build and install the exact artifact that will be published
-before publishing it:
+`pnpm version:release` has already updated `apps/vscode/package.json` to match
+the CLI. After documenting the release in `apps/vscode/CHANGELOG.md`, build and
+install the artifact locally before tagging:
 
 ```sh
 pnpm package
 code --install-extension ai-config.vsix --force
-npx vsce publish --packagePath ai-config.vsix
 ```
 
 `--force` matters when reinstalling the same version number: without it the
@@ -289,13 +286,18 @@ files are replaced but the running extension host keeps the old code, and the
 build appears not to have changed. `--packagePath` publishes the file that was
 just tested rather than building an untested one.
 
-### Tagging
+### Open VSX
 
-Once both registries have accepted the release:
+Open VSX distributes the same VSIX to compatible editors such as Google
+Antigravity and Windsurf. Create the `aiconfig` namespace once and save its
+access token as the GitHub Actions secret `OVSX_PAT`. Save the Visual Studio
+Marketplace token as `VSCE_PAT`. npm uses trusted publishing through GitHub
+OIDC, so it needs no long-lived npm token.
 
 ```sh
-git tag -a v1.2.0 -m "AI Config 1.2.0"
-git push origin v1.2.0
+npx ovsx create-namespace aiconfig # first release only
 ```
 
-One tag, because one version covers both artifacts.
+Configure npm's trusted publisher for repository `ShadyManu/ai-config` and
+workflow filename `release.yml`. Registry credentials are available only to the
+workflow triggered by a push to `main`; pull requests cannot publish.

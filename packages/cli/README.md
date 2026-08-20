@@ -9,6 +9,8 @@ overwriting anything.
 
 You do not need to know any provider's configuration format to use it.
 
+[Watch the introductory video on YouTube](https://www.youtube.com/watch?v=1dwmBAFaYTM).
+
 ## Install
 
 ```bash
@@ -36,12 +38,12 @@ aiconfig sync
 
 ```
 .ai/
-├── config.yaml            which providers are enabled
-├── instructions/          rules that are always in context
 ├── agents/                specialist helpers
-├── skills/                procedures loaded on demand
 ├── commands/              prompts you invoke explicitly
-└── providers/             optional provider-specific refinements
+├── instructions/          rules that are always in context
+├── providers/             optional provider-specific refinements
+├── skills/                procedures loaded on demand
+└── config.yaml            which providers are enabled
 ```
 
 A **portable artifact** holds only fields that mean the same thing everywhere,
@@ -96,6 +98,10 @@ Full documentation lives in the repository:
 
 An AI Config VS Code extension providing the same engine with a guided UI is
 also available.
+
+## Support
+
+Found a bug or have a suggestion? [Open an issue on GitHub](https://github.com/ShadyManu/ai-config/issues).
 
 ## License
 

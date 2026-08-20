@@ -5,6 +5,16 @@ All notable changes to `@aiconfig/cli` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.3.1] - 2026-08-20
+
+### Changed
+
+- Released in lockstep with version 1.3.1 of the VS Code extension, which adds
+  compatibility with editors based on VS Code API 1.107. CLI behavior is
+  unchanged.
+- The public README now presents the `.ai/` directories consistently and links
+  to the introductory video and GitHub support.
+
 ## [1.3.0] - 2026-08-20
 
 ### Security

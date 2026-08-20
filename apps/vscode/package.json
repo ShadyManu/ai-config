@@ -2,7 +2,7 @@
   "name": "ai-config",
   "displayName": "AI Config",
   "description": "Define your AI coding configuration once and keep Claude Code, Codex, GitHub Copilot, and OpenCode automatically synchronized.",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "private": true,
   "license": "MIT",
   "publisher": "aiconfig",
@@ -17,19 +17,28 @@
   "homepage": "https://github.com/ShadyManu/ai-config#readme",
   "icon": "resources/icon.png",
   "engines": {
-    "vscode": "^1.125.0"
+    "vscode": "^1.107.0"
   },
   "categories": [
-    "Programming Languages",
-    "Linters",
+    "AI",
     "Other"
   ],
   "keywords": [
     "ai",
-    "claude",
+    "ai agents",
+    "ai coding",
+    "ai configuration",
+    "antigravity",
+    "claude code",
     "codex",
-    "copilot",
-    "opencode"
+    "cursor",
+    "github copilot",
+    "instructions",
+    "opencode",
+    "prompts",
+    "skills",
+    "sync",
+    "windsurf"
   ],
   "activationEvents": [
     "workspaceContains:**/.ai/config.yaml"
@@ -180,7 +189,7 @@
     "viewsWelcome": [
       {
         "view": "aiconfig.explorer",
-        "contents": "No .ai directory was found in this workspace.\n\nAI Config compiles a single canonical configuration into Claude Code, Codex, GitHub Copilot and OpenCode formats.\n\n[Initialize Project](command:aiconfig.init)\n\n---\n\nFound a bug or have a suggestion? [Get in touch →](https://manuelraso.dev/contacts)"
+        "contents": "No .ai directory was found in this workspace.\n\nAI Config compiles a single canonical configuration into Claude Code, Codex, GitHub Copilot and OpenCode formats.\n\n[Initialize Project](command:aiconfig.init)\n\n---\n\nFound a bug or have a suggestion? [Open GitHub Issues →](https://github.com/ShadyManu/ai-config/issues)"
       }
     ],
     "submenus": [
@@ -365,7 +374,7 @@
     "@aiconfig/core": "workspace:*",
     "@aiconfig/providers": "workspace:*",
     "@types/mocha": "^10.0.10",
-    "@types/vscode": "^1.125.0",
+    "@types/vscode": "1.107.0",
     "@vscode/test-cli": "^0.0.15",
     "@vscode/test-electron": "^3.0.0",
     "@vscode/vsce": "^3.6.0"

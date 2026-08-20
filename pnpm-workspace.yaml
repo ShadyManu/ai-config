@@ -2,6 +2,10 @@ packages:
   - packages/*
   - apps/*
 
+overrides:
+  serialize-javascript: 7.0.5
+  diff: 9.0.0
+
 allowBuilds:
   esbuild: true
   # Both are @vscode/vsce dependencies used only when publishing to the

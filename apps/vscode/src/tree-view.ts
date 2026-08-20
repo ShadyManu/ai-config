@@ -43,7 +43,7 @@ export const PROVIDER_CONTEXT = 'aiconfig.provider';
 export const ENABLED_PROVIDER_CONTEXT = `${PROVIDER_CONTEXT}.enabled`;
 export const DISABLED_PROVIDER_CONTEXT = `${PROVIDER_CONTEXT}.disabled`;
 
-export const CONTACT_URL = 'https://manuelraso.dev/contacts';
+export const SUPPORT_URL = 'https://github.com/ShadyManu/ai-config/issues';
 
 /** Label of the section the configuration-scoped commands act on. */
 const CONFIGURATION_SECTION = 'Configuration';
@@ -311,15 +311,15 @@ export class AiConfigTreeProvider implements vscode.TreeDataProvider<Node>, vsco
 
       case 'contact': {
         const item = new vscode.TreeItem(
-          'Found a bug or have a suggestion? Get in touch →',
+          'Found a bug or have a suggestion? Open GitHub Issues →',
           vscode.TreeItemCollapsibleState.None,
         );
         item.iconPath = new vscode.ThemeIcon('arrow-right');
-        item.tooltip = 'Get in touch';
+        item.tooltip = 'Open AI Config issues on GitHub';
         item.command = {
           command: 'vscode.open',
-          title: 'Get in touch',
-          arguments: [vscode.Uri.parse(CONTACT_URL)],
+          title: 'Open GitHub Issues',
+          arguments: [vscode.Uri.parse(SUPPORT_URL)],
         };
         return item;
       }
