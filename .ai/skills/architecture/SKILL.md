@@ -112,9 +112,9 @@ Adding a provider requires, in order:
 4. `packages/adapter-<name>/` implementing `ProviderAdapter`;
 5. `targetRoots`, declaring every location the adapter may generate into, as
    narrowly as the provider allows — `.github/agents`, never `.github`;
-6. `alsoReads`, declaring every location the provider reads but does not own;
-   an adapter cannot see which others are enabled, so this declaration is the
-   only way an overlap gets reported instead of silently emitted;
+6. a note in `docs/providers/<name>.md` for every location the provider reads
+   but does not own; that overlap is documented, never reported, because every
+   copy is compiled from one canonical source and is identical;
 7. `overrides`, declaring any provider-specific artifact settings;
 8. one line in `packages/providers/src/index.ts`;
 9. fixture tests, and the combination tables in `packages/providers/test`.

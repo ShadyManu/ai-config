@@ -67,6 +67,29 @@ export interface DeprecatedOverrideField {
   readonly reason: string;
 }
 
+/**
+ * A provider's own documented promise that it accepts fields it does not define.
+ *
+ * OpenCode states it for agents: "Any other options you specify in your agent
+ * configuration will be passed through directly to the provider as model
+ * options" — which is how `reasoningEffort` and `textVerbosity` reach an OpenAI
+ * reasoning model without OpenCode defining either.
+ *
+ * Declaring it lowers an undeclared field from a warning to a note. It does not
+ * silence it: a typo and a field from next week's release are indistinguishable
+ * from here, and "AI Config did not check this" is worth saying either way. What
+ * the declaration changes is the claim being made — on a closed schema an
+ * unknown field is probably a mistake, on an open one it is probably correct,
+ * and reporting the second as a warning tells authors their documented
+ * configuration is wrong.
+ */
+export interface OverridePassthrough {
+  /** One sentence, in the provider's terms, on what it does with such a field. */
+  readonly reason: string;
+  /** First-party documentation URL stating it. */
+  readonly documentation: string;
+}
+
 /** What an override attaches to, in the terms a schema is allowed to inspect. */
 export interface OverrideTarget {
   readonly kind: SourceKind;
@@ -81,6 +104,13 @@ export interface ProviderOverrideSchema {
   /** Canonical keys this override may never redefine. */
   readonly reserved: readonly string[];
   readonly deprecated?: readonly DeprecatedOverrideField[];
+  /**
+   * Set when the provider documents that it accepts undeclared fields.
+   *
+   * Absent — the default — means the provider's accepted set is closed as far
+   * as AI Config knows, and an undeclared field is reported as unrecognized.
+   */
+  readonly passthrough?: OverridePassthrough;
   /**
    * Why this artifact cannot carry an override, if it cannot.
    *
@@ -393,15 +423,35 @@ const collectUnknown = (
       continue;
     }
 
+    // Reported either way, because the author still wants to know AI Config
+    // could not check it — a typo and a field from next week's release look
+    // identical from here. What differs is how alarming that is. Where the
+    // provider documents accepting undeclared fields, this is ordinary
+    // configuration and the note says so; where it does not, an unknown field
+    // is more likely a mistake and stays a warning.
     diagnostics.push(
-      warn(
-        context,
-        'OVERRIDE_UNRECOGNIZED_FIELD',
-        `'${path}' is not a field AI Config knows for this provider; it is written through to the generated file unchanged. Known fields: ${names.join(', ')}.`,
-      ),
+      schema.passthrough === undefined
+        ? warn(
+            context,
+            'OVERRIDE_UNRECOGNIZED_FIELD',
+            `'${path}' is not a field AI Config knows for this provider; it is written through to the generated file unchanged.${nestedFieldHint(path, names)} Known fields: ${names.join(', ')}.`,
+          )
+        : note(
+            context,
+            'OVERRIDE_UNRECOGNIZED_FIELD',
+            `'${path}' is not one of the fields AI Config knows for this provider, so it is written through unchanged and nothing checked it. ${schema.passthrough.reason} Worth a look only if it was meant to be one of: ${names.join(', ')}.`,
+          ),
     );
     passthrough.push({ segments, value: passed });
   }
+};
+
+/** Points out the common mistake of uncommenting only a nested leaf key. */
+const nestedFieldHint = (path: string, names: readonly string[]): string => {
+  const matches = names.filter((name) => name.endsWith(`.${path}`));
+  return matches.length === 1
+    ? ` Did you mean '${matches[0]}'? Uncomment its parent section as well.`
+    : '';
 };
 
 const readPath = (node: Record<string, unknown>, segments: readonly string[]): unknown => {

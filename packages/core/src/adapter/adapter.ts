@@ -1,4 +1,3 @@
-import type { CrossProviderCode } from '../domain/codes.js';
 import type { AiConfiguration, SourceRef } from '../domain/configuration.js';
 import type { Diagnostic } from '../domain/diagnostic.js';
 import type { ProviderId } from '../domain/provider.js';
@@ -47,36 +46,6 @@ export interface CompileResult {
 }
 
 /**
- * A location a provider reads but does not generate.
- *
- * Several providers document scanning directories another provider owns —
- * Copilot and OpenCode both read `.claude/skills` and `.agents/skills`, and
- * Copilot reads `AGENTS.md`. When two such providers are enabled together, one
- * receives the other's generated output, and none of them documents how the
- * duplication resolves.
- *
- * No adapter can detect this: `compile` deliberately cannot see which other
- * providers are enabled. So an adapter declares the location and the
- * consequence as data, and core — which does know the enabled set — matches it
- * against the compiled artifacts. Core never branches on a provider identity;
- * it compares paths and repeats a sentence the adapter wrote.
- */
-export interface ForeignIntake {
-  /**
-   * Repository-relative POSIX path, or directory prefix, that is also read.
-   * Matching is segment-aware: `.agents/skills` does not match
-   * `.agents/skills-extra/x.md`.
-   */
-  readonly path: string;
-  readonly code: CrossProviderCode;
-  /**
-   * One sentence stating what the overlap means for this provider. Core
-   * prefixes it with the location and the owning providers.
-   */
-  readonly consequence: string;
-}
-
-/**
  * Translates the provider-neutral configuration into one provider's files.
  *
  * `compile` is a single member rather than a separate `analyze` + `compile`
@@ -108,11 +77,6 @@ export interface ProviderAdapter {
    * `compile` actually emits.
    */
   readonly targetRoots: readonly string[];
-  /**
-   * Locations this provider reads but does not generate. Optional: most
-   * providers read only what they own.
-   */
-  readonly alsoReads?: readonly ForeignIntake[];
   /** Registered provider-owned extensions. Core validates envelope/targets only. */
   readonly extensions?: readonly ProviderExtensionDefinition[];
   /**

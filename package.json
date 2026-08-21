@@ -1,6 +1,6 @@
 {
   "name": "ai-config-workspace",
-  "version": "1.3.1",
+  "version": "1.4.0",
   "private": true,
   "description": "Define your AI coding configuration once and keep Claude Code, Codex, GitHub Copilot, and OpenCode automatically synchronized.",
   "license": "MIT",
@@ -19,7 +19,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
-    "test:vscode": "pnpm --filter ai-config run test",
+    "test:vscode": "tsc -b && pnpm --filter ai-config run test",
     "package": "pnpm run build && pnpm --filter ai-config run package",
     "clean": "tsc -b --clean && node -e \"require('node:fs').rmSync('apps/vscode/dist',{recursive:true,force:true})\"",
     "version:release": "node scripts/set-version.mjs"

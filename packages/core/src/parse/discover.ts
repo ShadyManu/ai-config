@@ -13,7 +13,7 @@ import type { DirectoryEntry, FileSystem } from '../fs/file-system.js';
 import { sha256 } from '../manifest/hash.js';
 import { checkPathsContained } from '../path/containment.js';
 import { checkGeneratedPath, resolveWithinRoot } from '../path/safe-path.js';
-import { findFrontmatterKeyLine, parseFrontmatter } from './frontmatter.js';
+import { findFrontmatterKeyLine, frontmatterMessage, parseFrontmatter } from './frontmatter.js';
 import { checkName, nameFromFilename } from './name.js';
 import { decodeSourceFile } from './text.js';
 import { isStringArray } from './yaml.js';
@@ -189,7 +189,7 @@ const listMarkdownFiles = async (
 
     const parsed = parseFrontmatter(decoded.text);
     if (!parsed.ok) {
-      diagnostics.push(error(parsed.code, `${parsed.reason}.`, sourcePath, parsed.line));
+      diagnostics.push(error(parsed.code, frontmatterMessage(parsed), sourcePath, parsed.line));
       continue;
     }
 
@@ -550,7 +550,7 @@ const readSkill = async (
 
   const parsed = parseFrontmatter(decoded.text);
   if (!parsed.ok) {
-    diagnostics.push(error(parsed.code, `${parsed.reason}.`, entrypointPath, parsed.line));
+    diagnostics.push(error(parsed.code, frontmatterMessage(parsed), entrypointPath, parsed.line));
     return undefined;
   }
 

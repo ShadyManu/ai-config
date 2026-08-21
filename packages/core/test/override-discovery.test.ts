@@ -153,17 +153,17 @@ describe('artifact override discovery', () => {
     }
   });
 
-  it('collects an orphaned override as a path, so the caller can remove it', async () => {
+  it('collects an orphaned override as a path, so the caller can report it', async () => {
     const fs = new MemoryFileSystem();
     fs.set('.ai/providers/claude/agents/ghost.yaml', 'schema: 1\noptions:\n  model: opus\n');
 
     const result = await discoverOverlay(fs, fs.root, 'claude', OPTIONS);
 
-    // Carried as data rather than left to be parsed back out of a message:
-    // `sync` removes these, and it needs the paths.
+    // Carried as data rather than left to be parsed back out of a message, so
+    // callers can report the paths without changing authored files.
     expect(result.overlay.orphanedOverrides).toEqual(['.ai/providers/claude/agents/ghost.yaml']);
-    // The message announces the removal rather than asking anyone to act.
-    expect(result.diagnostics[0]?.message).toContain('removed by the next synchronization');
+    // The message reports the preserved file and the explicit remedy.
+    expect(result.diagnostics[0]?.message).toContain('preserved until you remove it explicitly');
   });
 
   it('collects nothing when every override has its artifact', async () => {

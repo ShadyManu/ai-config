@@ -30,6 +30,38 @@ pnpm test:vscode  # extension tests, in a real Extension Development Host
 `pnpm typecheck` covers test files as well as sources. Tests are typechecked as
 ES modules through `tsconfig.test.json`, because that is how Vitest loads them.
 
+`pnpm test:vscode` compiles the packages first. The extension bundles
+`@aiconfig/core` from `packages/core/dist`, not from its sources, so running the
+extension tests against an unbuilt tree tests whichever version of core was
+compiled last — a change to core can look tested when nothing exercised it. The
+`tsc -b` in front of the command is what keeps that from being possible.
+
+`pnpm test:vscode` starts the Extension Development Host twice, because the
+extension tests need two different worlds:
+
+| Launch | Tests | Folder open |
+| --- | --- | --- |
+| `out/test/*.test.js` | pure helpers, and the guided flows called with a context built by the test | none |
+| `out/test/workspace/*.test.js` | `Controller`, end to end | `apps/vscode/test-workspace` |
+
+`Controller` takes its root from `vscode.workspace.workspaceFolders`, so with no
+folder open there is nothing for it to do. Anything only it performs — following
+a rename after a save, moving a directory through the editor's own filesystem
+API so an open tab travels with it — belongs in the second set. Anything that
+can be decided from data belongs in the first, or better, outside the editor
+entirely.
+
+`apps/vscode/test-workspace/` is empty in git apart from `.gitkeep`. It has to
+exist when the editor launches, and it must not contain `.ai/config.yaml` then:
+that is the extension's activation event, and an extension activating there
+would put a second `Controller` on the directory under test.
+
+Each test seeds it and empties it again, and `pretest` empties it once more
+before the editor starts — a test hook cannot undo an activation that has
+already happened, so an interrupted run must not be able to poison the next one.
+The workspace suite asserts the extension is inactive before its first test, so
+that failure is reported once and by name rather than as a cascade.
+
 ## Formatting
 
 Prettier owns formatting; run `pnpm format` to apply it. ESLint enforces
@@ -141,11 +173,12 @@ user's repository.
    mapping to fill the table is not.
 3. Add the identifier to `ProviderId` in `packages/core/src/domain/provider.ts`.
 4. Create `packages/adapter-<name>/` implementing `ProviderAdapter`.
-5. **Record any location the provider reads but does not own** in the adapter's
-   `alsoReads`. Several providers scan another provider's skills directory, or
-   read a shared `AGENTS.md`. If the new provider does, declare it: an adapter
-   cannot see which other providers are enabled, so this declaration is the
-   only way that overlap gets reported instead of silently emitted.
+5. **Document any location the provider reads but does not own** in
+   `docs/providers/<name>.md`. Several providers scan another provider's skills
+   directory, or read a shared `AGENTS.md`. That is worth writing down, and it is
+   deliberately not a diagnostic: every copy comes from one canonical source and
+   is identical, so there is nothing for an author to act on. See
+   `docs/architecture.md`.
 6. **Declare every location the adapter may generate into** in `targetRoots`,
    as narrowly as the provider allows — `.github/agents`, never `.github`. It is
    how Initialize recognizes pre-existing provider files, and a test fails if

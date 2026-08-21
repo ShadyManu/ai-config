@@ -42,6 +42,7 @@ export default tseslint.config(
       '**/node_modules/**',
       '**/.vscode-test/**',
       '**/test/fixtures/**',
+      'apps/vscode/test-workspace/**',
       'examples/**',
     ],
   },

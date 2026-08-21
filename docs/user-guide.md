@@ -91,13 +91,11 @@ to: `init`, a guided Add action, an explicit override action, or a CLI
 scaffolding command. **`aiconfig sync` never creates or modifies a file under
 `.ai/`.**
 
-It removes exactly one thing there: a provider override whose canonical
-artifact no longer exists. An override refines an artifact and means nothing
-without it, so when the artifact goes — deleted from the AI Config view, or
-deleted in an editor — the override goes with it, exactly as the generated
-files do. Each removal is named in the output, and `sync --dry-run` reports it
-without doing it. No override can be created in that state: an override is
-always written against an artifact that exists.
+It does not remove authored files there. If a provider override's canonical
+artifact no longer exists, AI Config reports the situation and preserves the
+override. It may be a rename, a branch switch, or an artifact that will be
+restored later. Remove it explicitly when that is your intent. Generated files
+are still cleaned up according to the ownership manifest.
 
 ### Enabled providers
 
@@ -282,7 +280,7 @@ the file, the problem, and a concrete fix. Do not modify any file.
 | Claude Code | Yes | `.ai/providers/claude/agents/<id>.yaml` | `tools`, `disallowedTools`, `model`, `permissionMode`, `maxTurns`, `skills`, `memory`, `effort`, `background`, `isolation`, `color`, `initialPrompt`, `mcpServers`, `hooks` |
 | Codex | Yes | `.ai/providers/codex/agents/<id>.yaml` | `model`, `model_reasoning_effort`, `model_reasoning_summary`, `model_verbosity`, `personality`, `sandbox_mode`, `approval_policy`, `web_search`, `service_tier`, `tools.view_image`, `mcp_servers` |
 | GitHub Copilot | Yes | `.ai/providers/copilot/agents/<id>.yaml` | `target`, `tools`, `model`, `disable-model-invocation`, `user-invocable`, `mcp-servers`, `metadata`, `argument-hint`, `handoffs`, `agents`, `hooks` |
-| OpenCode | Yes | `.ai/providers/opencode/agents/<id>.yaml` | `mode`, `model`, `temperature`, `top_p`, `steps`, `disable`, `hidden`, `color`, `permission` |
+| OpenCode | Yes | `.ai/providers/opencode/agents/<id>.yaml` | `mode`, `model`, `temperature`, `top_p`, `steps`, `disable`, `hidden`, `color`, `permission`, `reasoningEffort`, `textVerbosity`, `reasoningSummary`, `thinking`, `include`, plus any other model option |
 
 ### Generated outputs
 
@@ -415,16 +413,27 @@ AI Config preserves the canonical file and emits
 
 Claude Code, GitHub Copilot and OpenCode all scan `.claude/skills`,
 `.agents/skills` and their own directory. With several providers enabled the
-same skill is therefore discovered from more than one root, and none of them
-documents which copy wins. AI Config reports this as
-`SKILL_DISCOVERY_OVERLAP` rather than pretending it is settled.
+same skill is therefore reachable from more than one root.
+
+AI Config does not report this. Every copy is compiled from the same canonical
+skill and is byte-for-byte identical, and Copilot and OpenCode both deduplicate
+by name, so the skill that loads is the same skill whichever copy it comes from.
+Nor is there anything to act on: Claude Code reads only `.claude/skills` and
+Codex only `.agents/skills`, so no copy those providers need can be withheld.
+
+What each tool does with the duplication is described in
+[docs/providers/](providers/) — including an open defect in OpenCode's discovery
+that costs prompt cache reuse. Those are theirs to fix, and a warning on every
+synchronization would not have made any of them go away.
 
 ### Common errors
 
 | Code | Cause |
 | --- | --- |
 | `SKILL_MISSING` | The directory has no `SKILL.md`. |
-| `NAME_MISMATCH` | Frontmatter `name` does not match the directory name. |
+| `NAME_MISMATCH` | Frontmatter `name` does not match the directory name. In VS Code this is resolved for you: whichever of the two you edited, the other follows. |
+| `RENAME_TARGET_EXISTS` | A rename would overwrite something that is already there. |
+| `RENAME_SOURCE_MISSING` | There is nothing at the old name to rename. |
 | `SKILL_DESCRIPTION_LENGTH` | The description is over 1024 characters. |
 | `SKILL_SYMLINK_SKIPPED` | Symbolic links are not followed, because the target may lie outside the repository. |
 | `OVERRIDE_CANONICAL_FIELD` | A provider override sets a key the canonical `SKILL.md` already sets. Set it in one place. |
@@ -572,6 +581,39 @@ options:
 
 ---
 
+## Renaming an artifact
+
+An artifact's name appears twice: in the path — `.ai/skills/code-review/`,
+`.ai/agents/reviewer.md` — and in the `name` field inside the file. They have to
+agree, and `NAME_MISMATCH` is reported when they do not.
+
+Either one can be edited. In VS Code the other follows on save:
+
+- change `name` in the file, and the file or directory is renamed to match,
+  together with every override written for it under `.ai/providers/`;
+- rename the file or directory in the explorer, and the `name` field is
+  rewritten to match.
+
+Which of the two you edited is worked out from the state before the edit, so
+neither undoes the other. When it cannot be worked out — the first refresh after
+opening a project that was already in this state, or a project where both names
+are taken — you are asked which one wins instead.
+
+On the command line the same operation is one command:
+
+```bash
+aiconfig rename skill scouts scout
+aiconfig rename agent reviewer code-reviewer
+```
+
+It refuses to overwrite: if something already exists at the new name, nothing is
+moved and `RENAME_TARGET_EXISTS` says what is in the way.
+
+The generated provider files are not renamed directly. They become orphans the
+moment the canonical source moves, and the next synchronization removes them
+after checking each one still holds the bytes AI Config wrote — so a generated
+file you had edited by hand is reported rather than discarded.
+
 ## Provider override reference
 
 Every override file has the same shape:
@@ -602,6 +644,14 @@ without waiting for an AI Config update. The trade-off is that a typo is a
 warning rather than an error, so check the Problems panel — or `aiconfig
 validate` — when a setting does not behave as expected. Run `aiconfig validate
 --check` in CI to make these warnings fail the build.
+
+One provider goes further. OpenCode documents that any agent option it does not
+itself define is forwarded to the model provider as a model option, so for an
+OpenCode **agent** override an undeclared field is ordinary configuration. It is
+still reported — a typo is indistinguishable from a new model option, and
+silence would let one through — but as an informational note rather than a
+warning, and the note says why the field is probably fine. Everywhere else,
+OpenCode's own command overrides included, an undeclared field stays a warning.
 
 A field the canonical artifact owns, and a field a provider has retired, are
 still refused outright: both are known to be wrong rather than merely unknown.
@@ -1022,13 +1072,40 @@ options:
 | `disable` | No | Boolean | Disable the agent without deleting it. | — |
 | `hidden` | No | Boolean | Hide the subagent from `@` autocomplete. | — |
 | `color` | No | Hex value, or `primary`, `secondary`, `accent`, `success`, `warning`, `error`, `info` | Display colour. | — |
-| `permission` | No | Mapping | Per-tool permissions. Every key accepts `allow`, `ask` or `deny`; `read`, `edit`, `glob`, `grep`, `list`, `bash`, `task`, `external_directory`, `lsp` and `skill` also accept a glob-pattern map. | — |
+| `permission` | No | Mapping | Per-tool permissions. Every key accepts `allow`, `ask` or `deny`; `read`, `edit`, `glob`, `grep`, `list`, `bash`, `task`, `external_directory`, `lsp` and `skill` also accept a glob-pattern map. Which subagents the agent may invoke is `permission.task`; there is no top-level `task` field. | — |
+| `reasoningEffort` | No | String; OpenAI reasoning models accept `low`, `medium`, `high`, `xhigh` | Model option, forwarded to the model provider. | the model provider's own default |
+| `textVerbosity` | No | String; OpenAI reasoning models accept `low`, `medium`, `high` | Model option, forwarded to the model provider. | the model provider's own default |
+| `reasoningSummary` | No | String, such as `auto` | Model option, forwarded to the model provider. Asks an OpenAI reasoning model for a summary of its reasoning. | the model provider's own default |
+| `thinking` | No | Mapping, such as `{ type: enabled, budgetTokens: 16000 }` | Model option, forwarded to the model provider. Anthropic extended thinking. | the model provider's own default |
+| `include` | No | List of strings, such as `reasoning.encrypted_content` | Model option, forwarded to the model provider. Extra response fields to request. | — |
 
 Each becomes frontmatter in `.opencode/agents/<id>.md`, after `description`. No
 `name` is written: OpenCode takes the agent name from the filename.
 
 `tools` is not supported: OpenCode documents it as deprecated and directs new
 configuration at `permission`.
+
+The last five are model options: OpenCode does not interpret them, it forwards
+them to whichever model provider the agent uses. They are listed because
+OpenCode's own documentation shows them on an agent, and their accepted values
+are left open because those belong to the model provider rather than to
+OpenCode.
+
+**This table is not the limit.** OpenCode documents an open agent
+configuration: any option it does not itself define is forwarded to the model
+provider as a model option. A field this table does not list is therefore
+ordinary configuration rather than a mistake — write it and AI Config emits it
+unchanged.
+
+It is still reported, as an **informational** `OVERRIDE_UNRECOGNIZED_FIELD`
+rather than a warning. AI Config cannot tell a model option it has not heard of
+from a typo, and saying nothing at all would let `temperatur: 0.5` reach the
+generated file in silence. The note says only what is true — nothing checked
+this field — and lists the ones it does know, in case one of them was meant.
+
+OpenCode agents are currently the only open schema. Everywhere else, OpenCode's
+own command overrides included, an undeclared field is a warning, because those
+providers document closed sets.
 
 Reference: [OpenCode agents](https://opencode.ai/docs/agents/).
 

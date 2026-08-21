@@ -206,7 +206,6 @@ interface ProviderAdapter {
   readonly id: ProviderId;
   readonly displayName: string;
   readonly targetRoots: readonly string[];       // locations it may generate into
-  readonly alsoReads?: readonly ForeignIntake[]; // locations read but not owned
   compile(configuration: AiConfiguration): CompileResult;
 }
 
@@ -252,28 +251,29 @@ so a defective adapter degrades into a diagnostic rather than a stack trace.
 the adapter that returned the file, so an adapter cannot claim ownership on
 another provider's behalf.
 
-### Foreign intake
+### Directories a provider reads but does not own
 
-Some providers read directories another provider owns: Copilot and OpenCode
-both scan `.claude/skills` and `.agents/skills`, and Copilot reads a root
-`AGENTS.md`. With both providers enabled, one consumes the other's generated
-output, and none of them documents how the duplication resolves.
+Some providers read directories another provider owns: Copilot and OpenCode both
+scan `.claude/skills` and `.agents/skills`, and Copilot reads a root `AGENTS.md`.
+With several providers enabled, one consumes the other's generated output.
 
-An adapter cannot detect this — `compile` cannot see which other providers are
-enabled, and that restriction is what stops adapters from coupling to each
-other. Core cannot hold the facts either, because it never branches on a
-provider identity.
+Nothing reports this, and no adapter declares it. Every copy is compiled from the
+same canonical source and is byte-for-byte identical, both tools deduplicate
+skills by name, and the ambiguity that remains — which of several identical
+copies a tool happens to bind to — is a property of that tool, not of the
+configuration. It is documented per provider under `docs/providers/`, where a
+reader can find it, rather than reported on every synchronization where nobody
+can act on it.
 
-`alsoReads` resolves the tension by moving the facts into the adapter as
-**data**: a path, a diagnostic code from a closed two-value set, and a sentence
-stating the consequence. `compile` matches those declarations against the
-reconciled artifacts, skips anything the declaring provider already owns, and
-attributes one warning per consuming provider and location to the consuming
-provider. Core compares strings and repeats a sentence; it never learns what
-`copilot` means.
+This is the second diagnostic removed for that reason, after
+`INSTRUCTION_DISCOVERY_OVERLAP` in 1.3.0. The rule they both failed is in
+`.claude/skills/diagnostics/SKILL.md`: a warning must be actionable, and a
+permanent unfixable one teaches people to ignore the whole set.
 
-The diagnostic names `.ai/config.yaml` as its source, because the enabled set is
-the cause and that file is the only place to act on it.
+The mechanism that carried them — an `alsoReads` declaration on the adapter,
+matched against reconciled artifacts by core — went with the last of them.
+Keeping an extension point with no consumer would have been a promise the next
+adapter author could not cash.
 
 ### Skill payloads
 

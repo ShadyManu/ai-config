@@ -47,24 +47,6 @@ const SUBSETS: readonly (readonly ProviderId[])[] = Array.from(
 const name = (subset: readonly ProviderId[]): string =>
   subset.length === 0 ? 'no provider' : subset.join(' + ');
 
-/**
- * Skill roots a provider reads but does not own, as documented in
- * `docs/user-guide.md` and each adapter's `alsoReads`. Copilot and OpenCode
- * both scan Claude Code's and Codex's skill directories.
- */
-const INTAKES: Readonly<
-  Partial<Record<ProviderId, readonly { path: string; owner: ProviderId }[]>>
-> = {
-  copilot: [
-    { path: '.claude/skills', owner: 'claude' },
-    { path: '.agents/skills', owner: 'codex' },
-  ],
-  opencode: [
-    { path: '.claude/skills', owner: 'claude' },
-    { path: '.agents/skills', owner: 'codex' },
-  ],
-};
-
 /** Providers that read the shared root `AGENTS.md`, and therefore co-own it. */
 const AGENTS_MD_OWNERS: readonly ProviderId[] = ['codex', 'opencode'];
 
@@ -138,37 +120,29 @@ describe('enabled-provider combinations', () => {
       );
     });
 
-    it(`warns once per consuming provider and shared skill root: ${name(subset)}`, async () => {
+    it(`produces no diagnostic that exists only because of the combination: ${name(subset)}`, async () => {
       const combined = await compileSubset(subset);
 
-      const expected = subset
-        .flatMap((consumer) =>
-          (INTAKES[consumer] ?? [])
-            .filter((intake) => subset.includes(intake.owner))
-            .map((intake) => `${consumer}:${intake.path}`),
-        )
-        .sort();
-
-      const actual = combined.diagnostics
-        .filter((diagnostic) => diagnostic.code === 'SKILL_DISCOVERY_OVERLAP')
-        .map((diagnostic) => {
-          const intake = (INTAKES[diagnostic.provider!] ?? []).find((candidate) =>
-            diagnostic.message.includes(`'${candidate.path}'`),
-          );
-          return `${diagnostic.provider}:${intake?.path}`;
-        })
-        .sort();
-
-      expect(actual).toEqual(expected);
-
-      // The hazard is caused by the enabled combination, so it is reported
-      // against the file that decides the combination.
-      for (const diagnostic of combined.diagnostics.filter(
-        (candidate) => candidate.code === 'SKILL_DISCOVERY_OVERLAP',
-      )) {
-        expect(diagnostic.severity).toBe('warning');
-        expect(diagnostic.source).toBe('.ai/config.yaml');
+      const alone: string[] = [];
+      for (const provider of subset) {
+        for (const diagnostic of (await compileSubset([provider])).diagnostics) {
+          alone.push(`${String(diagnostic.provider)} ${diagnostic.code} ${diagnostic.message}`);
+        }
       }
+
+      // The counterpart of the invariant above: enabling a provider changes
+      // neither what another one generates nor what it reports. Nothing in the
+      // compiler looks at the enabled set any more, and this is what keeps it
+      // that way — a check that would have failed while skill-discovery
+      // overlaps were reported, since those existed only in combination.
+      expect(
+        combined.diagnostics
+          .map(
+            (diagnostic) =>
+              `${String(diagnostic.provider)} ${diagnostic.code} ${diagnostic.message}`,
+          )
+          .sort(),
+      ).toEqual(alone.sort());
     });
 
     it(`co-owns the shared AGENTS.md and nothing else: ${name(subset)}`, async () => {
@@ -204,18 +178,6 @@ describe('enabled-provider combinations: boundaries', () => {
     const result = await compileSubset([]);
     expect(result.artifacts).toEqual([]);
     expect(result.diagnostics).toEqual([]);
-  });
-
-  it('reports no cross-provider hazard for any single provider', async () => {
-    // A provider cannot overlap with itself: an artifact it owns is not
-    // foreign to it, even when it sits under a root it declares reading.
-    for (const provider of ALL) {
-      const result = await compileSubset([provider]);
-      expect(
-        result.diagnostics.map((diagnostic) => diagnostic.code),
-        provider,
-      ).not.toContain('SKILL_DISCOVERY_OVERLAP');
-    }
   });
 
   it('adds files monotonically as providers are enabled', async () => {

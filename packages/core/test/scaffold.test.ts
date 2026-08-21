@@ -291,6 +291,12 @@ const TEMPLATE_SCHEMA: ProviderOverrideSchema = {
       documentation: 'https://example.invalid/skills',
     },
     {
+      name: 'context',
+      type: { kind: 'enum', values: ['fork'] },
+      description: 'Run in an isolated context.',
+      documentation: 'https://example.invalid/skills',
+    },
+    {
       name: 'maxTurns',
       type: { kind: 'number', min: 1, integer: true },
       description: 'Turn budget.',
@@ -379,13 +385,24 @@ describe('override templates', () => {
       fields: ['model', 'effort', 'maxTurns', 'background', 'hooks'],
     });
 
-    expect(content).toContain('# Suggested values: sonnet, opus.');
+    expect(content).not.toContain('Suggested values:');
     expect(content).toContain('# Default: inherit.');
     expect(content).toContain('# One of: low, high.');
     expect(content).toContain('# A whole number, at least 1.');
     expect(content).toContain('# true or false.');
     expect(content).toContain('  # hooks: {}');
     expect(content).toContain('# Reference: https://example.invalid/skills');
+  });
+
+  it('writes the only valid enum value into the template', () => {
+    const content = renderOverrideTemplate(TEMPLATE_SCHEMA, {
+      ...TEMPLATE_DRAFT,
+      fields: ['context'],
+    });
+
+    expect(content).toContain('  # context: fork');
+    expect(content).not.toContain('Only value:');
+    expect(content).not.toContain('context: TODO');
   });
 
   it('nests a dotted field name so uncommenting it produces the right key', () => {
@@ -399,6 +416,9 @@ describe('override templates', () => {
     expect(content).toContain('  #   brand_color: TODO');
     // One parent key for both children, not one per field.
     expect(content.split('interface:').length - 1).toBe(1);
+    expect(content).toContain(
+      'For nested settings, uncomment the parent section and the setting below it together.',
+    );
   });
 
   it('is deterministic and independent of the order the fields were chosen in', () => {

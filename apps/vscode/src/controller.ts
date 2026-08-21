@@ -2,9 +2,11 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 
 import type {
+  AiConfiguration,
   AnalysisResult,
   CompiledArtifact,
   Diagnostic,
+  NameMismatch,
   OverrideTarget,
   ProviderAdapter,
   ProviderId,
@@ -14,7 +16,9 @@ import {
   AI_DIRECTORY,
   CONFIG_PATH,
   NodeFileSystem,
+  alignArtifactName,
   analyze,
+  canonicalArtifactAt,
   clean,
   countBySeverity,
   disableProvider as disableInConfig,
@@ -25,8 +29,10 @@ import {
   init,
   isInitialized,
   overridePath,
+  readNameMismatch,
   removeArtifact,
   removeOverride,
+  renameArtifact,
   resolveContent,
   restore,
   sync,
@@ -35,6 +41,14 @@ import { createDefaultAdapters } from '@aiconfig/providers';
 
 import { DiagnosticPublisher } from './diagnostics.js';
 import type { Logger } from './logger.js';
+import type { DetectedRename } from './rename-direction.js';
+import {
+  decideRenameDirection,
+  detectedRenames,
+  identitiesOf,
+  mergeRenames,
+  questionKey,
+} from './rename-direction.js';
 import { StatusBar } from './status-bar.js';
 import { AiConfigTreeProvider } from './tree-view.js';
 import { WATCHED_GLOB, isRelevantChange } from './watch.js';
@@ -67,7 +81,34 @@ import {
   providerSourceDirectory,
 } from './wizards/providers.js';
 
-export const GENERATED_SCHEME = 'aiconfig-generated';
+/**
+ * The core filesystem, with renames routed through the editor.
+ *
+ * A rename is applied as a `WorkspaceEdit` rather than with `fs.rename` or even
+ * `vscode.workspace.fs.rename`. Both of those move bytes and nothing else: an
+ * open `SKILL.md` would be left as a tab pointing at a path that no longer
+ * exists — and that tab holds the file the author was editing, because editing
+ * its `name` is what asked for the rename. A workspace edit is the operation the
+ * workbench itself performs, so open editors follow the file and everything
+ * watching file operations is told.
+ *
+ * The edit carries no overwrite option, so applying it onto an existing path
+ * fails rather than replacing it. Core has already refused that case; this is
+ * the guarantee underneath the check, not the check.
+ *
+ * Everything else stays the Node implementation. This is the one operation whose
+ * effect reaches beyond the disk.
+ */
+class EditorFileSystem extends NodeFileSystem {
+  public override async rename(from: string, to: string): Promise<void> {
+    const edit = new vscode.WorkspaceEdit();
+    edit.renameFile(vscode.Uri.file(from), vscode.Uri.file(to));
+
+    if (!(await vscode.workspace.applyEdit(edit))) {
+      throw new Error(`The editor refused to rename '${from}' to '${to}'.`);
+    }
+  }
+}
 
 /** Debounce for `.ai/` bursts: long enough to coalesce a multi-file save. */
 const REFRESH_DEBOUNCE_MS = 300;
@@ -79,7 +120,7 @@ const REFRESH_DEBOUNCE_MS = 300;
  * contains no compilation, ownership or path logic of its own.
  */
 export class Controller implements vscode.Disposable {
-  private readonly fileSystem = new NodeFileSystem();
+  private readonly fileSystem = new EditorFileSystem();
   private readonly adapters: readonly ProviderAdapter[] = createDefaultAdapters();
   private readonly diagnostics = new DiagnosticPublisher();
   private readonly statusBar = new StatusBar();
@@ -89,6 +130,40 @@ export class Controller implements vscode.Disposable {
   private analysis: AnalysisResult | undefined;
   private watcher: vscode.FileSystemWatcher | undefined;
   private refreshTimer: NodeJS.Timeout | undefined;
+
+  /**
+   * The canonical names the last refresh saw.
+   *
+   * This is what tells the two halves of a rename apart. When `name` and the
+   * path disagree, one of them was just edited and the other is the old value —
+   * and the old value is the one that was there a moment ago. Without this the
+   * editor could only guess, and guessing wrong means undoing the rename the
+   * author just made in the explorer.
+   */
+  private knownNames = new Set<string>();
+
+  /**
+   * Mismatches already put to the author, so an unanswered question is asked
+   * once rather than on every save that triggers a refresh.
+   */
+  private readonly asked = new Set<string>();
+
+  /**
+   * Renames the editor itself reported, waiting for the next refresh.
+   *
+   * Exact evidence, where matching artifacts by content is inference. VS Code
+   * fires this for a rename made in the explorer, so an artifact renamed *and*
+   * edited in the same breath — which content matching gives up on, correctly,
+   * rather than guessing — is still recognized and still keeps its overrides.
+   *
+   * It says nothing about a rename made outside the editor: a `git mv`, a branch
+   * switch, another program. Content matching stays as the fallback for those.
+   */
+  private readonly reportedRenames: DetectedRename[] = [];
+
+  private readonly renameWatcher = vscode.workspace.onDidRenameFiles((event) => {
+    this.recordReportedRenames(event);
+  });
 
   /**
    * Serializes every operation that reads or writes the repository.
@@ -172,7 +247,21 @@ export class Controller implements vscode.Disposable {
   private async runRefresh(): Promise<void> {
     await this.chooseRootSilently();
 
-    const analysis = await this.loadAndPublish();
+    // Captured before the reload replaces it: resolving a rename needs to know
+    // what the project looked like a moment ago.
+    const before = new Set(this.knownNames);
+    const previous = this.analysis?.project.configuration;
+    let analysis = await this.loadAndPublish();
+
+    if (await this.resolveNameMismatches(analysis, before)) {
+      analysis = await this.loadAndPublish();
+    }
+
+    // Before the synchronization, which is what would remove the overrides of
+    // an artifact it believes was deleted.
+    if (await this.followRenamedArtifacts(previous, analysis)) {
+      analysis = await this.loadAndPublish();
+    }
 
     if (analysis !== undefined && this.shouldSyncOnSave(analysis)) {
       await this.runSync({ silent: true });
@@ -180,6 +269,273 @@ export class Controller implements vscode.Disposable {
       // sync, so leaving it would show pending work that no longer exists.
       await this.loadAndPublish();
     }
+  }
+
+  /**
+   * Follows a rename the author made, in whichever place they made it.
+   *
+   * A canonical artifact carries its name twice: in the path, and in the
+   * frontmatter. Editing either one alone used to be a dead end —
+   * `NAME_MISMATCH` dropped the artifact from the configuration and stayed
+   * until the author had renamed the file, the directory and every override by
+   * hand. Both edits mean the same thing, so both are carried out.
+   *
+   * Which one was edited is decided from the previous refresh rather than
+   * guessed: whichever name was there before is the old one. Renaming a skill
+   * in its frontmatter and renaming its directory in the explorer therefore
+   * both work, and neither undoes the other. When the answer is not in evidence
+   * — the first refresh of a session, or a project where both names are already
+   * taken — the author is asked instead.
+   *
+   * Returns whether anything on disk changed.
+   */
+  private async resolveNameMismatches(
+    analysis: AnalysisResult | undefined,
+    before: ReadonlySet<string>,
+  ): Promise<boolean> {
+    const root = this.root;
+    if (root === undefined || analysis === undefined) {
+      return false;
+    }
+
+    const sources = [
+      ...new Set(
+        analysis.diagnostics
+          .filter((diagnostic) => diagnostic.code === 'NAME_MISMATCH')
+          .map((diagnostic) => diagnostic.source)
+          .filter((source): source is string => source !== undefined),
+      ),
+    ].sort();
+
+    const outstanding = new Set<string>();
+    let changed = false;
+
+    for (const source of sources) {
+      const mismatch = await readNameMismatch(this.fileSystem, root, source);
+      if (mismatch === undefined) {
+        continue;
+      }
+      outstanding.add(questionKey(mismatch));
+
+      switch (decideRenameDirection(mismatch, before)) {
+        case 'rename-path':
+          changed = (await this.renameToDeclaredName(root, mismatch)) || changed;
+          break;
+        case 'align-name':
+          changed = (await this.alignNameToPath(root, mismatch)) || changed;
+          break;
+        case 'ask':
+          this.askWhichNameWins(root, mismatch);
+          break;
+      }
+    }
+
+    // A question stops being outstanding once its mismatch is gone, so making
+    // the same mistake again asks again.
+    for (const key of [...this.asked]) {
+      if (!outstanding.has(key)) {
+        this.asked.delete(key);
+      }
+    }
+
+    return changed;
+  }
+
+  /** Moves the artifact so its location matches the name it declares. */
+  private async renameToDeclaredName(root: string, mismatch: NameMismatch): Promise<boolean> {
+    const outcome = await renameArtifact(
+      this.fileSystem,
+      root,
+      mismatch.kind,
+      mismatch.pathName,
+      mismatch.declaredName,
+    );
+
+    if (!outcome.ok) {
+      this.logger.error(
+        `Could not rename ${mismatch.kind} '${mismatch.pathName}' to '${mismatch.declaredName}'.`,
+      );
+      for (const diagnostic of outcome.diagnostics) {
+        this.logger.info(`  ${diagnostic.code} ${diagnostic.message}`);
+      }
+      void vscode.window.showWarningMessage(
+        `AI Config: ${outcome.diagnostics[0]?.message ?? 'the rename could not be applied.'}`,
+      );
+      return false;
+    }
+
+    for (const move of outcome.moved) {
+      this.logger.info(`Renamed ${move.from} -> ${move.to}`);
+    }
+
+    // Announced rather than done quietly: this moved a file the author did not
+    // ask to move, and the overrides that went with it are not on screen.
+    const overrides = Math.max(0, outcome.moved.length - 1);
+    void vscode.window.showInformationMessage(
+      `AI Config: renamed the ${mismatch.kind} '${mismatch.pathName}' to '${mismatch.declaredName}'${overrides === 0 ? '' : `, with ${String(overrides)} override file${overrides === 1 ? '' : 's'}`}.`,
+    );
+    return outcome.moved.length > 0;
+  }
+
+  /**
+   * Records a rename the editor performed, for the next refresh to act on.
+   *
+   * Only a canonical artifact's own path counts — `.ai/agents/x.md`, or the
+   * directory `.ai/skills/x`, which is the single event an editor fires when a
+   * folder moves. A file *inside* a skill moving is that skill being edited, not
+   * renamed.
+   */
+  private recordReportedRenames(event: vscode.FileRenameEvent): void {
+    const root = this.root;
+    if (root === undefined) {
+      return;
+    }
+
+    for (const file of event.files) {
+      const from = canonicalArtifactAt(relativeTo(root, file.oldUri.fsPath));
+      const to = canonicalArtifactAt(relativeTo(root, file.newUri.fsPath));
+
+      // Same kind, different name. A move between kinds is not a rename of
+      // anything: it is one artifact gone and another arrived.
+      if (from === undefined || to?.kind !== from.kind || to.name === from.name) {
+        continue;
+      }
+      this.reportedRenames.push({ kind: from.kind, from: from.name, to: to.name });
+    }
+  }
+
+  /**
+   * Moves the provider overrides of an artifact whose file was renamed by hand.
+   *
+   * `resolveNameMismatches` covers a rename that leaves evidence: a `name` field
+   * disagreeing with the path. An instruction, agent or command scaffolded by AI
+   * Config carries no `name` at all, so renaming its file leaves none — the
+   * artifact simply appears under a new name, and every override written for the
+   * old one refines nothing and is deleted by the next synchronization. That is
+   * a file the author wrote, destroyed without being asked.
+   *
+   * The rename is recovered by comparing this refresh with the last one: same
+   * kind, same content, different name. Nothing is guessed — an artifact that
+   * was also edited, or one indistinguishable from another, reports no rename
+   * and the old behaviour stands.
+   */
+  private async followRenamedArtifacts(
+    previous: AiConfiguration | undefined,
+    analysis: AnalysisResult | undefined,
+  ): Promise<boolean> {
+    const root = this.root;
+    // Drained whether or not they can be used: a rename nobody acted on must
+    // not be applied to some unrelated later state.
+    const reported = this.reportedRenames.splice(0);
+    if (root === undefined || analysis === undefined) {
+      return false;
+    }
+
+    let changed = false;
+    for (const rename of mergeRenames(
+      reported,
+      detectedRenames(previous, analysis.project.configuration),
+    )) {
+      const outcome = await alignArtifactName(
+        this.fileSystem,
+        root,
+        rename.kind,
+        rename.from,
+        rename.to,
+      );
+
+      if (!outcome.ok) {
+        this.logger.error(
+          `Could not move the overrides of ${rename.kind} '${rename.from}' to '${rename.to}'.`,
+        );
+        for (const diagnostic of outcome.diagnostics) {
+          this.logger.info(`  ${diagnostic.code} ${diagnostic.message}`);
+        }
+        continue;
+      }
+
+      for (const move of outcome.moved) {
+        this.logger.info(`Renamed ${move.from} -> ${move.to}, following the ${rename.kind}.`);
+      }
+      if (outcome.moved.length > 0) {
+        changed = true;
+        void vscode.window.showInformationMessage(
+          `AI Config: '${rename.from}' was renamed to '${rename.to}', so ${outcome.moved.length === 1 ? 'its provider override' : `its ${String(outcome.moved.length)} provider overrides`} moved with it.`,
+        );
+      }
+    }
+
+    return changed;
+  }
+
+  /**
+   * Completes a rename the author performed on the file itself.
+   *
+   * The `name` field catches up, and so do the provider overrides: they are
+   * addressed by the old name, and leaving them there would make them refine
+   * nothing and be removed as orphans by the synchronization that follows.
+   */
+  private async alignNameToPath(root: string, mismatch: NameMismatch): Promise<boolean> {
+    const outcome = await alignArtifactName(
+      this.fileSystem,
+      root,
+      mismatch.kind,
+      mismatch.declaredName,
+      mismatch.pathName,
+    );
+
+    if (!outcome.ok) {
+      this.logger.error(`Could not set the name in ${mismatch.sourcePath}.`);
+      for (const diagnostic of outcome.diagnostics) {
+        this.logger.info(`  ${diagnostic.code} ${diagnostic.message}`);
+      }
+      return false;
+    }
+
+    // No notification: the author renamed the file themselves and the field is
+    // catching up, so there is nothing they did not already know.
+    this.logger.info(
+      `Set name to '${mismatch.pathName}' in ${mismatch.sourcePath}, matching its location.`,
+    );
+    return true;
+  }
+
+  /**
+   * Puts the choice to the author when the direction is not in evidence.
+   *
+   * Deliberately not awaited. This runs inside the operation chain, and waiting
+   * on a notification would hold every queued operation behind an answer that
+   * may never come; the chosen action is queued as its own operation instead.
+   */
+  private askWhichNameWins(root: string, mismatch: NameMismatch): void {
+    const key = questionKey(mismatch);
+    if (this.asked.has(key)) {
+      return;
+    }
+    this.asked.add(key);
+
+    const rename = `Rename to '${mismatch.declaredName}'`;
+    const keep = `Keep '${mismatch.pathName}'`;
+
+    void vscode.window
+      .showWarningMessage(
+        `AI Config: this ${mismatch.kind} is called '${mismatch.pathName}' by its location and '${mismatch.declaredName}' by its name field.`,
+        rename,
+        keep,
+      )
+      .then((choice) => {
+        if (choice === undefined) {
+          return;
+        }
+        void this.enqueue(async () => {
+          if (choice === rename) {
+            await this.renameToDeclaredName(root, mismatch);
+          } else {
+            await this.alignNameToPath(root, mismatch);
+          }
+          await this.loadAndPublish();
+        });
+      });
   }
 
   /**
@@ -278,6 +634,7 @@ export class Controller implements vscode.Disposable {
     }
 
     this.analysis = outcome.analysis;
+    this.knownNames = identitiesOf(outcome.analysis);
     this.diagnostics.publish(root, outcome.analysis.diagnostics);
     this.tree.update(root, outcome.analysis);
     this.statusBar.setAnalysis(outcome.analysis);
@@ -343,8 +700,8 @@ export class Controller implements vscode.Disposable {
       this.logger.info(
         `Sync complete: ${String(summary.written)} written, ${String(summary.deleted)} deleted, ${String(summary.unchanged)} unchanged.`,
       );
-      // The only files under `.ai/` a synchronization removes, so each one is
-      // named in the log rather than folded into a count.
+      // Kept for API compatibility; automatic synchronization currently does
+      // not remove authored overrides.
       for (const removed of outcome.result.removedOverrides) {
         this.logger.info(`Removed ${removed}, which no longer refines anything.`);
       }
@@ -1197,6 +1554,7 @@ export class Controller implements vscode.Disposable {
 
   public dispose(): void {
     this.disposed = true;
+    this.renameWatcher.dispose();
     if (this.refreshTimer !== undefined) {
       clearTimeout(this.refreshTimer);
     }
@@ -1211,3 +1569,13 @@ const summarize = (analysis: AnalysisResult): string => {
   const { configuration } = analysis.project;
   return `${String(configuration.instructions.length)} instructions, ${String(configuration.agents.length)} agents, ${String(configuration.skills.length)} skills, ${String(configuration.commands.length)} commands`;
 };
+
+/**
+ * A workspace path, as `.ai/` paths are written everywhere else.
+ *
+ * Returns the absolute path unchanged when it lies outside the root, which
+ * `canonicalArtifactAt` then refuses, so a rename elsewhere in the workspace
+ * cannot be mistaken for one under `.ai/`.
+ */
+const relativeTo = (root: string, absolute: string): string =>
+  path.relative(root, absolute).split(path.sep).join('/');

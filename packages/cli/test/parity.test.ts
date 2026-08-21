@@ -13,6 +13,7 @@ import {
   disableProvider,
   enableProvider,
   removeArtifact,
+  renameArtifact,
   restore,
 } from '@aiconfig/core';
 import { exampleRepositoryRoot } from '@aiconfig/core/testing';
@@ -135,6 +136,25 @@ describe('the CLI reaches the same state as the view', () => {
       const trees = compare();
       expect(trees.cli).toEqual(trees.ui);
       expect(Object.keys(trees.cli).some((entry) => entry.includes(name))).toBe(false);
+    });
+  }
+
+  for (const { kind, name } of KINDS) {
+    it(`renames a ${kind} exactly as following a changed name field does`, async () => {
+      await cli(['sync']);
+      await runCli(['sync', '--cwd', uiRoot], { streams: capture().streams });
+
+      await cli(['rename', kind, name, `${name}-2`]);
+      await cli(['sync']);
+
+      // What the view runs when `name` and the path stop agreeing:
+      // `renameArtifact`, then a synchronization.
+      await renameArtifact(fileSystem, uiRoot, kind, name, `${name}-2`);
+      await runCli(['sync', '--cwd', uiRoot], { streams: capture().streams });
+
+      const trees = compare();
+      expect(trees.cli).toEqual(trees.ui);
+      expect(Object.keys(trees.cli).some((entry) => entry.includes(`${name}-2`))).toBe(true);
     });
   }
 

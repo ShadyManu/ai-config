@@ -3,7 +3,6 @@ import type {
   AiInstruction,
   CompileResult,
   Diagnostic,
-  ForeignIntake,
   FrontmatterField,
   GeneratedFile,
   ProviderAdapter,
@@ -50,15 +49,6 @@ export const PROMPTS_DIRECTORY = '.github/prompts';
  */
 export const AGENT_BODY_MAX_LENGTH = 30_000;
 
-// Locations Copilot reads that another adapter owns. Spelled out literally
-// rather than imported: an adapter may not depend on another adapter, and a
-// shared constant would imply a coupling that must not exist.
-const CLAUDE_SKILLS_ROOT = '.claude/skills';
-const SHARED_SKILLS_ROOT = '.agents/skills';
-
-const SKILL_OVERLAP_CONSEQUENCE =
-  'GitHub Copilot scans .github/skills, .claude/skills and .agents/skills, so those skills are discovered from more than one root. GitHub documents no resolution for a skill name that appears in several, so which copy wins is undefined.';
-
 /**
  * GitHub Copilot adapter.
  *
@@ -80,37 +70,6 @@ export class CopilotAdapter implements ProviderAdapter {
     INSTRUCTIONS_DIRECTORY,
     PROMPTS_DIRECTORY,
     SKILLS_DIRECTORY,
-  ];
-
-  /**
-   * Copilot reads more than it is given.
-   *
-   * It scans `.claude/skills` and `.agents/skills` alongside `.github/skills`.
-   * Those roots belong to other adapters, so this adapter never writes them —
-   * but when those providers are enabled too, Copilot consumes their output,
-   * and no resolution between the copies is documented. Declaring the locations
-   * lets core report that; the condition is invisible from inside `compile`.
-   *
-   * No intake is declared for the root `AGENTS.md`, which Copilot also reads.
-   * That overlap is defined and benign: the content is identical to what this
-   * adapter already emits, so the instruction is only repeated. Its one real
-   * consequence — a path-scoped instruction arriving unscoped through that
-   * channel — is already reported per instruction as
-   * `INSTRUCTION_SCOPE_NOT_SUPPORTED`, against the canonical file the author can
-   * act on. Restating it against `.ai/config.yaml` added noise, not
-   * information. See `docs/providers/copilot.md`.
-   */
-  public readonly alsoReads: readonly ForeignIntake[] = [
-    {
-      path: CLAUDE_SKILLS_ROOT,
-      code: 'SKILL_DISCOVERY_OVERLAP',
-      consequence: SKILL_OVERLAP_CONSEQUENCE,
-    },
-    {
-      path: SHARED_SKILLS_ROOT,
-      code: 'SKILL_DISCOVERY_OVERLAP',
-      consequence: SKILL_OVERLAP_CONSEQUENCE,
-    },
   ];
 
   public readonly overrides: readonly ProviderOverrideSchema[] = COPILOT_OVERRIDES;

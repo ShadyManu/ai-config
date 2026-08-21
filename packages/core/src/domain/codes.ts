@@ -48,6 +48,8 @@ export const DIAGNOSTIC_CODES = [
   'NAME_MISMATCH',
   'DUPLICATE_NAME',
   'DUPLICATE_INVOCABLE_NAME',
+  'RENAME_SOURCE_MISSING',
+  'RENAME_TARGET_EXISTS',
   'INVALID_APPLY_TO',
   'INSTRUCTION_EMPTY_APPLY_TO',
   'INSTRUCTION_BODY_EMPTY',
@@ -94,21 +96,6 @@ export const DIAGNOSTIC_CODES = [
   'COMMAND_LIMITED_SURFACE',
   'AGENT_BODY_TOO_LONG',
   'SKILL_ALLOWED_TOOLS_UNSUPPORTED',
-
-  // Cross-provider: one enabled provider consumes another's generated output
-  'SKILL_DISCOVERY_OVERLAP',
 ] as const;
 
 export type DiagnosticCode = (typeof DIAGNOSTIC_CODES)[number];
-
-/**
- * The codes core may raise on a provider's behalf for a foreign intake.
- *
- * Deliberately a closed subset of {@link DiagnosticCode}: an adapter supplies
- * the location and the consequence, and core decides everything else, so an
- * adapter must not be able to raise an arbitrary code through that path.
- * Declared with `Extract` so renaming a code breaks compilation here rather
- * than silently widening the set. One code today, but the set is the contract,
- * not the count.
- */
-export type CrossProviderCode = Extract<DiagnosticCode, 'SKILL_DISCOVERY_OVERLAP'>;

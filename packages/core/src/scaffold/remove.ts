@@ -73,19 +73,14 @@ export const removeArtifact = async (
 };
 
 /**
- * Removes override files that no longer refine anything, and prunes what that
- * empties.
+ * Removes explicitly selected override files, and prunes what that empties.
  *
- * The one place a synchronization removes a file under `.ai/`. It never creates
- * or modifies one, and it removes only an override whose canonical artifact is
- * gone — a file that can no longer affect any provider's output, and that no
- * supported operation can create in that state, since an override is written
- * against an artifact that exists.
+ * Synchronization does not call this function: an orphan may be the result of
+ * a rename or branch switch. Explicit cleanup remains allowed because the
+ * user's intent is unambiguous.
  *
- * This is what makes the rule uniform: when an artifact goes, everything it
- * produced goes with it, whether the artifact was removed from the view or
- * deleted in an editor. The generated files were already treated that way; an
- * override left behind was the exception.
+ * The generated files are still removed by synchronization according to the
+ * ownership manifest; this function only handles authored override cleanup.
  *
  * `paths` comes from overlay discovery rather than from scanning here, so the
  * only files considered are the ones that were read, parsed, and found to have

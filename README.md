@@ -88,6 +88,7 @@ Codex and OpenCode record scoped rules visibly in `AGENTS.md` but apply them glo
 aiconfig init      [--providers <list>] [--cwd <dir>]
 aiconfig add       <instruction|agent|skill|command> <name> [options]
 aiconfig remove    <instruction|agent|skill|command> <name>
+aiconfig rename    <instruction|agent|skill|command> <from> <to>
 aiconfig override  <create|list|remove> [arguments]
 aiconfig providers <enable|disable> <provider>
 aiconfig validate  [--check] [--json] [--cwd <dir>]

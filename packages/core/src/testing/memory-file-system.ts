@@ -179,6 +179,54 @@ export class MemoryFileSystem implements FileSystem {
     return Promise.resolve();
   }
 
+  /**
+   * Re-keys the entry, and every entry beneath it when it is a directory.
+   *
+   * A directory here is only a prefix shared by its files, so moving one means
+   * rewriting those keys; there is nothing else to move.
+   */
+  public rename(from: string, to: string): Promise<void> {
+    const source = this.normalize(from);
+    const target = this.normalize(to);
+
+    if (this.files.has(target) || this.directories.has(target)) {
+      return Promise.reject(
+        Object.assign(new Error(`EEXIST: '${to}' already exists`), { code: 'EEXIST' }),
+      );
+    }
+    if (!this.files.has(source) && !this.directories.has(source)) {
+      return Promise.reject(
+        Object.assign(new Error(`ENOENT: '${from}' does not exist`), { code: 'ENOENT' }),
+      );
+    }
+
+    const file = this.files.get(source);
+    if (file !== undefined) {
+      this.files.delete(source);
+      this.ensureParents(target);
+      this.files.set(target, file);
+      return Promise.resolve();
+    }
+
+    const prefix = `${source}/`;
+    for (const [existing, entry] of [...this.files]) {
+      if (existing.startsWith(prefix)) {
+        this.files.delete(existing);
+        this.files.set(`${target}/${existing.slice(prefix.length)}`, entry);
+      }
+    }
+    for (const existing of [...this.directories]) {
+      if (existing === source || existing.startsWith(prefix)) {
+        this.directories.delete(existing);
+        this.directories.add(
+          existing === source ? target : `${target}/${existing.slice(prefix.length)}`,
+        );
+      }
+    }
+    this.ensureParents(`${target}/placeholder`);
+    return Promise.resolve();
+  }
+
   public deleteFile(target: string): Promise<void> {
     this.files.delete(this.normalize(target));
     return Promise.resolve();

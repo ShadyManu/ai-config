@@ -56,6 +56,21 @@ export interface FileSystem {
   deleteFile: (path: string) => Promise<void>;
 
   /**
+   * Moves `from` to `to`, for a file or a whole directory.
+   *
+   * Refuses when `to` already exists, on every platform. POSIX `rename` would
+   * silently replace an existing file, and the one caller — renaming a
+   * canonical artifact — must never destroy another artifact to make room for
+   * this one. Callers check first anyway, so this is the guarantee rather than
+   * the check.
+   *
+   * A missing `from` throws, unlike the readers above: nothing has been moved,
+   * and a caller that asked to move something that is not there has already got
+   * its facts wrong.
+   */
+  rename: (from: string, to: string) => Promise<void>;
+
+  /**
    * Removes `path` only if it is an empty directory, and does nothing
    * otherwise.
    *

@@ -579,14 +579,56 @@ describe('override fields: canonical and unknown keys', () => {
     }
   });
 
-  it('warns about a field it does not know but still writes it through', () => {
+  it('reports a field it does not know, on every schema, and still writes it through', () => {
     for (const provider of PROVIDERS) {
       for (const schema of schemasOf(adapterFor(provider))) {
         const result = validate(provider, schema, { 'a-field-from-a-later-release': 'value' });
         const where = `${provider} ${schema.kind}`;
 
+        // Always reported. A typo and a field from next week's release are
+        // indistinguishable from here, so the one thing AI Config can honestly
+        // say — that it did not check this — is said either way.
         expect(codes(result.diagnostics), where).toEqual(['OVERRIDE_UNRECOGNIZED_FIELD']);
         expect(result.options?.['a-field-from-a-later-release'], where).toBe('value');
+      }
+    }
+  });
+
+  it('grades that report by whether the provider documents accepting such a field', () => {
+    for (const provider of PROVIDERS) {
+      for (const schema of schemasOf(adapterFor(provider))) {
+        const [diagnostic] = validate(provider, schema, {
+          'a-field-from-a-later-release': 1,
+        }).diagnostics;
+        const where = `${provider} ${schema.kind}`;
+
+        // Read from the declaration rather than listed by provider, so adding
+        // `passthrough` to a schema cannot silently change what is asserted.
+        if (schema.passthrough === undefined) {
+          // A closed set: an undeclared field is more likely a mistake.
+          expect(diagnostic?.severity, where).toBe('warning');
+        } else {
+          // An open one: it is probably correct, and saying otherwise in yellow
+          // tells the author their documented configuration is wrong.
+          expect(diagnostic?.severity, where).toBe('info');
+          expect(diagnostic?.message, where).toContain(schema.passthrough.reason);
+        }
+      }
+    }
+  });
+
+  it('names the pass-through promise it relies on, where it declares one', () => {
+    // The exception above is only defensible because a provider documents it,
+    // so the declaration has to carry the sentence and the URL that say so.
+    for (const provider of PROVIDERS) {
+      for (const schema of schemasOf(adapterFor(provider))) {
+        const passthrough = schema.passthrough;
+        if (passthrough === undefined) {
+          continue;
+        }
+        const where = `${provider} ${schema.kind}`;
+        expect(passthrough.reason.length, where).toBeGreaterThan(0);
+        expect(passthrough.documentation, where).toMatch(/^https:\/\//);
       }
     }
   });

@@ -145,6 +145,7 @@ describe('aiconfig init', () => {
     for (const provider of ['claude', 'codex', 'copilot', 'opencode']) {
       expect(config).toContain(`- ${provider}`);
     }
+    expect(config).toContain('# Available providers: claude, codex, copilot, opencode.');
   });
 
   it('refuses to overwrite an existing .ai directory', async () => {
@@ -203,21 +204,44 @@ describe('aiconfig sync', () => {
     expect(result.stdout).not.toContain('COMMAND_CONVERTED_TO_SKILL');
   });
 
-  it('surfaces cross-provider discovery hazards for the enabled combination', async () => {
+  it('says nothing about skill roots that several enabled providers read', async () => {
     seedFromExample();
     const result = await run(['sync']);
 
     // The example enables all four providers, so Copilot and OpenCode both
-    // re-discover skills AI Config generated for Claude Code and Codex.
-    expect(result.stdout).toContain('SKILL_DISCOVERY_OVERLAP');
-    // Reported against the file that decides which providers are enabled.
-    expect(result.stdout).toContain('.ai/config.yaml');
+    // re-discover skills AI Config generated for Claude Code and Codex. Every
+    // copy is compiled from the same canonical skill, and both tools
+    // deduplicate by name, so nothing about the combination is worth
+    // interrupting a synchronization for.
+    expect(result.stdout).not.toContain('DISCOVERY_OVERLAP');
   });
 
-  it('removes an override whose artifact was deleted, and names the file', async () => {
+  it('reports nothing extra for four providers that it would not report for one', async () => {
+    seedFromExample();
+    const together = await run(['validate']);
+
+    fs.writeFileSync(
+      path.join(root, '.ai', 'config.yaml'),
+      ['schema: 1', 'providers:', '  enabled: [opencode]', ''].join('\n'),
+      'utf8',
+    );
+    const alone = await run(['validate']);
+
+    // Whatever the combination costs, it costs it silently: no diagnostic
+    // exists because of which other providers happen to be enabled.
+    const opencodeLines = (output: string): readonly string[] =>
+      output
+        .split('\n')
+        .filter((line) => line.includes('opencode'))
+        .sort();
+
+    expect(opencodeLines(together.stdout)).toEqual(opencodeLines(alone.stdout));
+  });
+
+  it('preserves an override whose artifact was deleted', async () => {
     // The CLI and the extension share one compiler, so this is the same code
     // the view runs. What differs is the reporting, and a removal under `.ai/`
-    // that scrolled past unnamed would be the wrong kind of quiet.
+    // that was authored by the user must not be deleted by an automatic sync.
     seedFromExample();
     await run(['sync']);
     expect(exists('.ai/providers/claude/agents/reviewer.yaml')).toBe(true);
@@ -226,9 +250,7 @@ describe('aiconfig sync', () => {
     const result = await run(['sync']);
 
     expect(result.code).toBe(0);
-    expect(result.stdout).toContain('.ai/providers/claude/agents/reviewer.yaml');
-    expect(result.stdout).toContain('no longer refines anything');
-    expect(exists('.ai/providers/claude/agents/reviewer.yaml')).toBe(false);
+    expect(exists('.ai/providers/claude/agents/reviewer.yaml')).toBe(true);
     expect(exists('.claude/agents/reviewer.md')).toBe(false);
   });
 
@@ -244,7 +266,7 @@ describe('aiconfig sync', () => {
     expect(exists('.ai/providers/claude/agents/reviewer.yaml')).toBe(true);
   });
 
-  it('lists the removal in --json, so a script can see it too', async () => {
+  it('does not list an automatic override removal in --json', async () => {
     seedFromExample();
     await run(['sync']);
     fs.rmSync(path.join(root, '.ai', 'agents', 'reviewer.md'));
@@ -253,7 +275,8 @@ describe('aiconfig sync', () => {
       removedOverrides: string[];
     };
 
-    expect(payload.removedOverrides).toContain('.ai/providers/claude/agents/reviewer.yaml');
+    expect(payload.removedOverrides).toEqual([]);
+    expect(exists('.ai/providers/claude/agents/reviewer.yaml')).toBe(true);
   });
 
   it('writes AGENTS.md once, shared by Codex and OpenCode', async () => {
@@ -364,6 +387,78 @@ describe('aiconfig sync', () => {
     const result = await run(['sync']);
     expect(result.code).toBe(1);
     expect(result.stderr).toContain('NOT_INITIALIZED');
+  });
+});
+
+describe('aiconfig rename', () => {
+  it('moves the skill directory, its overrides and its name field together', async () => {
+    seedFromExample();
+
+    const result = await run(['rename', 'skill', 'code-review', 'review']);
+
+    expect(result.code).toBe(0);
+    expect(exists('.ai/skills/code-review')).toBe(false);
+    expect(exists('.ai/skills/review/SKILL.md')).toBe(true);
+    expect(read('.ai/skills/review/SKILL.md')).toContain('name: review');
+    // The supporting files travel with the directory.
+    expect(exists('.ai/skills/review/references/checklist.md')).toBe(true);
+    // The override was named after the skill, so it had to move too.
+    expect(exists('.ai/providers/codex/skills/code-review.yaml')).toBe(false);
+    expect(exists('.ai/providers/codex/skills/review.yaml')).toBe(true);
+    expect(result.stdout).toContain('Run: aiconfig sync');
+  });
+
+  it('generates under the new name and leaves nothing behind under the old one', async () => {
+    seedFromExample();
+    await run(['sync']);
+    expect(exists('.claude/skills/code-review/SKILL.md')).toBe(true);
+
+    await run(['rename', 'skill', 'code-review', 'review']);
+    const result = await run(['sync']);
+
+    expect(result.code).toBe(0);
+    // The old generated files were orphans after the rename, and the planner
+    // removes an orphan only after re-verifying it still holds AI Config's own
+    // bytes — which is why the rename never touches them itself.
+    expect(exists('.claude/skills/code-review')).toBe(false);
+    expect(exists('.claude/skills/review/SKILL.md')).toBe(true);
+    expect(exists('.opencode/skills/review/SKILL.md')).toBe(true);
+  });
+
+  it('refuses to overwrite, and moves nothing when it does', async () => {
+    seedFromExample();
+
+    const result = await run(['rename', 'agent', 'reviewer', 'reviewer-2']);
+    expect(result.code).toBe(0);
+
+    const blocked = await run(['rename', 'agent', 'reviewer-2', 'reviewer-2']);
+    expect(blocked.code).toBe(0);
+
+    write('.ai/agents/taken.md', '---\ndescription: Taken\n---\n\nBody.\n');
+    const refused = await run(['rename', 'agent', 'reviewer-2', 'taken']);
+
+    expect(refused.code).toBe(1);
+    expect(refused.stderr).toContain('RENAME_TARGET_EXISTS');
+    expect(exists('.ai/agents/reviewer-2.md')).toBe(true);
+    expect(read('.ai/agents/taken.md')).toContain('Taken');
+  });
+
+  it('reports a name that does not exist', async () => {
+    seedFromExample();
+
+    const result = await run(['rename', 'agent', 'nothing-here', 'something']);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain('RENAME_SOURCE_MISSING');
+  });
+
+  it('checks its arguments before touching anything', async () => {
+    seedFromExample();
+
+    const result = await run(['rename', 'skill', 'code-review']);
+
+    expect(result.code).toBe(EXIT_USAGE);
+    expect(result.stderr).toContain('Usage: aiconfig rename skill <from> <to>.');
   });
 });
 

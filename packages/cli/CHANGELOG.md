@@ -5,6 +5,125 @@ All notable changes to `@aiconfig/cli` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.4.0] - 2026-08-22
+
+### Added
+
+- `aiconfig rename <kind> <from> <to>` renames a canonical artifact, the file or
+  directory holding it, the `name` field inside it, and every provider override
+  written for it. Changing `name` used to be a dead end: the field and the path
+  disagreed, `NAME_MISMATCH` dropped the artifact from the configuration, and
+  getting back to a valid project meant renaming the file, the directory and
+  each `.ai/providers/<provider>/<kind>/<name>.yaml` by hand. All of it was
+  always one intention, so it is now one operation.
+
+  Nothing moves until every move has been checked, so a rename that cannot
+  complete leaves the project exactly as it was, and a destination that is
+  already taken is refused rather than overwritten. The generated provider files
+  are not renamed directly: they become orphans the moment the source moves, and
+  the next synchronization removes them after re-verifying each one still holds
+  the bytes AI Config wrote.
+
+- `RENAME_TARGET_EXISTS` and `RENAME_SOURCE_MISSING`, the two ways a rename
+  refuses. Diagnostic codes are part of the public contract, so these are
+  additions to it.
+
+### Changed
+
+- The OpenCode agent override declares every model option OpenCode documents as
+  settable on an agent: `reasoningEffort`, `textVerbosity`, `reasoningSummary`,
+  `thinking` and `include`. All five were reported as fields AI Config did not
+  recognize, which is what a documented option must never be. Their accepted
+  values are left open — free strings and an unconstrained mapping — because
+  those belong to the model provider rather than to OpenCode, which documents
+  none of them; an enum would reject whatever the next model accepts.
+
+- An undeclared field on an OpenCode **agent** override is informational rather
+  than a warning. OpenCode documents an open agent configuration — any option it
+  does not itself define is forwarded to the model provider as a model option —
+  so a field AI Config has not heard of is probably correct there, and yellow
+  said the opposite on every run.
+
+  It is still reported. A typo and a model option nobody has written down yet
+  are indistinguishable from here, and silence would let `temperatur: 0.5` reach
+  the generated file unremarked. `OVERRIDE_UNRECOGNIZED_FIELD` now claims only
+  what is true — that nothing checked the field — and lists the declared fields
+  in case one of them was meant.
+
+  A provider schema declares whether its accepted set is closed. Only OpenCode
+  agents declare otherwise; every other schema, OpenCode's own command overrides
+  included, still warns. A field the schema does declare is validated as
+  strictly as ever, and canonical fields and fields a provider has retired are
+  still refused outright everywhere: both are known to be wrong rather than
+  merely unknown.
+
+### Removed
+
+- The `SKILL_DISCOVERY_OVERLAP` diagnostic, and the `alsoReads` adapter
+  declaration that carried it. It warned that enabling several providers makes
+  the same skill reachable from several roots — `.opencode/skills`,
+  `.claude/skills`, `.agents/skills`, `.github/skills` — and that no provider
+  documents which copy wins.
+
+  The condition is real and the warning was unactionable, which is the
+  combination this project treats as a defect. Every copy is compiled from the
+  same canonical skill and is byte-for-byte identical; Copilot and OpenCode both
+  deduplicate by name; and nothing in `.ai/` could change the situation, because
+  Claude Code reads only `.claude/skills` and Codex only `.agents/skills`, so
+  neither copy can be withheld. The warning appeared on every synchronization of
+  an ordinary multi-provider project with no way to resolve or suppress it,
+  which is how a diagnostic set stops being read.
+
+  What the duplication costs each tool is now documented in
+  `docs/providers/opencode.md` and `docs/providers/copilot.md`, including an open
+  defect in OpenCode's discovery where the path reported for a skill reachable
+  from several roots flips between sessions and costs prompt prefix-cache reuse.
+  That is OpenCode's to fix, and no warning here would have made it go away.
+
+  This is the second overlap diagnostic removed for the same reason, after
+  `INSTRUCTION_DISCOVERY_OVERLAP` in 1.3.0. That one left the mechanism standing
+  because this code still used it; nothing does now, so `ForeignIntake`,
+  `ProviderAdapter.alsoReads`, `CrossProviderCode` and the cross-provider matcher
+  in `compile` are gone with it. No adapter behaviour changes: the code simply
+  stops being emitted, and an extension point with no consumer stops being
+  advertised.
+
+### Fixed
+
+- `alignArtifactName` moves the provider overrides of the artifact it realigns.
+  It completes a rename whose canonical file has already moved, and it was only
+  rewriting the `name` field — leaving every override at the old name, refining
+  an artifact that no longer existed, to be removed as an orphan by the next
+  synchronization. It now takes both `from` and `to`, matching the complete
+  rename operation introduced in this release.
+
+- A YAML error now says what is actually wrong with the line. The parser reports
+  what its state machine hit — "Unexpected scalar at node end" — several
+  characters past the cause, and the most common cause in practice is a quoted
+  `description:` containing the same quote character, because every scaffolded
+  artifact ships with `description: "TODO: …"` already quoted and authors paste
+  prose into it. The parser's own wording is kept, since it is what a search
+  engine matches, and a sentence naming the mistake is added after it:
+
+  ```text
+  Unexpected scalar at node end. The value of 'description' is wrapped in double
+  quotes, and the double quote at line 3, column 25 ends it early. Escape every
+  double quote inside the value as \", or wrap the whole value in single quotes
+  instead.
+  ```
+
+  A quote that is never closed, a tab used as indentation, and an unquoted value
+  containing a colon are explained the same way. The explanation is derived from
+  the source line rather than from the parser's message, so a library wording
+  change cannot silently disable it, and it covers `.ai/config.yaml`, canonical
+  frontmatter and provider override files alike.
+
+- YAML errors point at the line and column of the failure instead of always at
+  the start of the block. The position was read from a field the parser fills in
+  only under `prettyErrors`, which was off — so `line` had silently been the
+  fallback since the first release. It is now derived from the failure's
+  character offset, which is always present.
+
 ## [1.3.1] - 2026-08-20
 
 ### Changed
@@ -164,9 +283,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   wins. `docs/providers/copilot.md` now describes the `AGENTS.md` overlap and
   how to switch it off in the client.
 
-  Diagnostic codes are part of the public contract, so removing one is a
-  breaking change. Nothing fails that did not fail before: the code simply
-  stops being emitted.
+  The code simply stops being emitted; existing configurations continue to
+  behave as before.
 
 - The unused `UNKNOWN_SYNC_SETTING` and `INVALID_SYNC_SETTINGS` diagnostic
   codes, left over from a `sync` configuration key that no released build ever

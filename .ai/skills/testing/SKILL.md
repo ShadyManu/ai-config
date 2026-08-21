@@ -25,9 +25,22 @@ Prefer:
 3. combination tests in `packages/providers/test` for anything that only holds
    across providers;
 4. integration tests for filesystem synchronization;
-5. minimal VS Code integration tests for IDE wiring.
+5. VS Code integration tests for what only the editor performs.
 
 Do not test implementation details unnecessarily.
+
+Level 5 is a real level, not an excuse. `pnpm test:vscode` launches twice: once
+with no folder open, for helpers and guided flows, and once with
+`apps/vscode/test-workspace` open, where `Controller` can be driven end to end —
+seed `.ai/`, save a change, `await controller.refresh()`, assert on disk. See
+`docs/contributing.md`.
+
+So "this cannot be tested because the extension host has no workspace" is no
+longer true, and behaviour that lives in `Controller` needs a test like anything
+else. What is still worth doing first is moving the decision out of `Controller`
+into a function that takes data and returns data, and testing that: the editor
+suite then only has to prove the wiring is attached, not re-derive every case
+through it.
 
 ## Combinations
 

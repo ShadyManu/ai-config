@@ -24,3 +24,6 @@ examples/
 # itself. The manifest records a hash of every file it wrote, so reformatting
 # one would register as drift and block the next sync.
 .ai/.generated.json
+
+# Written and deleted by the VS Code integration tests.
+apps/vscode/test-workspace/

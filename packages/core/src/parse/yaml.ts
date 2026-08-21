@@ -1,5 +1,7 @@
 import { parseDocument } from 'yaml';
 
+import { explainYamlFailure } from './yaml-explain.js';
+
 export interface YamlPosition {
   readonly line: number;
   readonly column: number;
@@ -7,7 +9,17 @@ export interface YamlPosition {
 
 export type YamlResult =
   | { readonly ok: true; readonly value: unknown }
-  | { readonly ok: false; readonly reason: string; readonly position: YamlPosition | undefined };
+  | {
+      readonly ok: false;
+      readonly reason: string;
+      readonly position: YamlPosition | undefined;
+      /**
+       * A complete sentence naming the mistake behind `reason`, when one can be
+       * derived from the source. The parser's own message is kept as-is in
+       * `reason`; this is added after it, never instead of it.
+       */
+      readonly explanation: string | undefined;
+    };
 
 /**
  * Parses YAML into plain data.
@@ -29,7 +41,7 @@ export const parseYaml = (text: string, lineOffset = 0): YamlResult => {
 
     const failure = document.errors[0];
     if (failure !== undefined) {
-      return { ok: false, reason: failure.message, position: positionOf(failure, lineOffset) };
+      return failed(text, failure, lineOffset);
     }
 
     // An unresolved custom tag is only a warning to the library, which would
@@ -37,7 +49,7 @@ export const parseYaml = (text: string, lineOffset = 0): YamlResult => {
     // deliberately is exactly what this project forbids, so it is an error.
     const warning = document.warnings[0];
     if (warning !== undefined) {
-      return { ok: false, reason: warning.message, position: positionOf(warning, lineOffset) };
+      return failed(text, warning, lineOffset);
     }
 
     return { ok: true, value: document.toJS() as unknown };
@@ -46,20 +58,60 @@ export const parseYaml = (text: string, lineOffset = 0): YamlResult => {
       ok: false,
       reason: error instanceof Error ? error.message : 'could not parse YAML',
       position: undefined,
+      explanation: undefined,
     };
   }
 };
 
+interface YamlProblem {
+  readonly message: string;
+  /** Character offsets into the parsed text: `[start, end]`. */
+  readonly pos?: readonly [number, number] | undefined;
+}
+
+/**
+ * The library reports where its state machine stopped, which is rarely where
+ * the author's mistake is, so the source line is re-read here to say what is
+ * actually wrong with it.
+ */
+const failed = (text: string, problem: YamlProblem, lineOffset: number): YamlResult => {
+  const position = positionOf(problem, text, lineOffset);
+  return {
+    ok: false,
+    reason: problem.message,
+    position,
+    explanation: explainYamlFailure(
+      text,
+      position === undefined ? undefined : position.line - lineOffset,
+      lineOffset,
+    ),
+  };
+};
+
+/**
+ * Converts the failure's character offset into a line and column.
+ *
+ * Derived here rather than read from the library's own `linePos`, which it
+ * fills in only under `prettyErrors`. Turning that on would fold the position
+ * into `message` as several lines of quoted source, and a diagnostic message is
+ * one line — so the offset, which is always present, is converted instead.
+ */
 const positionOf = (
-  problem: {
-    readonly linePos?: readonly [{ line: number; col: number }, ...unknown[]] | undefined;
-  },
+  problem: YamlProblem,
+  text: string,
   lineOffset: number,
 ): YamlPosition | undefined => {
-  const linePos = problem.linePos?.[0];
-  return linePos === undefined
-    ? undefined
-    : { line: linePos.line + lineOffset, column: linePos.col };
+  const offset = problem.pos?.[0];
+  if (offset === undefined) {
+    return undefined;
+  }
+
+  const before = text.slice(0, Math.max(0, Math.min(offset, text.length)));
+  const lastBreak = before.lastIndexOf('\n');
+  return {
+    line: before.split('\n').length + lineOffset,
+    column: before.length - lastBreak,
+  };
 };
 
 /**

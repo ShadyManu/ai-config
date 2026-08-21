@@ -106,65 +106,27 @@ describe('cross-adapter output', () => {
     }
   });
 
-  it('warns exactly once per consuming provider and location when all four are enabled', async () => {
-    const configuration = await discoverFixtureConfiguration(exampleRepositoryRoot(testDirectory));
-
-    const result = compile(configuration, createDefaultAdapters());
-    const overlaps = result.diagnostics
-      .filter((d) => d.code === 'SKILL_DISCOVERY_OVERLAP')
-      .map((d) => `${String(d.provider)} ${d.code}`);
-
-    // Copilot and OpenCode each scan the same two foreign skill roots. Claude
-    // Code and Codex read only what they write, so neither reports anything.
-    expect(overlaps.sort()).toEqual([
-      'copilot SKILL_DISCOVERY_OVERLAP',
-      'copilot SKILL_DISCOVERY_OVERLAP',
-      'opencode SKILL_DISCOVERY_OVERLAP',
-      'opencode SKILL_DISCOVERY_OVERLAP',
-    ]);
-  });
-
-  it('reports no overlap for a provider enabled on its own', async () => {
-    const configuration = await discoverFixtureConfiguration(exampleRepositoryRoot(testDirectory));
-
-    for (const adapter of createDefaultAdapters()) {
-      const result = compile(configuration, [adapter]);
-      expect(
-        result.diagnostics.filter((d) => d.code.endsWith('_DISCOVERY_OVERLAP')),
-        adapter.id,
-      ).toEqual([]);
-    }
-  });
-
-  it('reports only the roots the enabled combination actually populates', async () => {
+  it('adds no diagnostic when all four are enabled together', async () => {
     const configuration = await discoverFixtureConfiguration(exampleRepositoryRoot(testDirectory));
     const adapters = createDefaultAdapters();
-    const copilot = adapters.filter((adapter) => adapter.id === 'copilot');
-    const claude = adapters.filter((adapter) => adapter.id === 'claude');
-    const codex = adapters.filter((adapter) => adapter.id === 'codex');
 
-    const withClaude = compile(configuration, [...copilot, ...claude]).diagnostics.filter((d) =>
-      d.code.endsWith('_DISCOVERY_OVERLAP'),
+    const alone = adapters.flatMap((adapter) =>
+      compile(configuration, [adapter]).diagnostics.map(
+        (diagnostic) => `${String(diagnostic.provider)} ${diagnostic.code}`,
+      ),
     );
-    expect(withClaude).toHaveLength(1);
-    expect(withClaude[0]?.message).toContain('.claude/skills');
-
-    // Codex populates the shared skills root, and nothing else Copilot reads.
-    const withCodex = compile(configuration, [...copilot, ...codex]).diagnostics.filter((d) =>
-      d.code.endsWith('_DISCOVERY_OVERLAP'),
+    const together = compile(configuration, adapters).diagnostics.map(
+      (diagnostic) => `${String(diagnostic.provider)} ${diagnostic.code}`,
     );
-    expect(withCodex).toHaveLength(1);
-    expect(withCodex[0]?.message).toContain('.agents/skills');
-  });
 
-  it('reports no overlap when the project has no skills', async () => {
-    const configuration = await discoverFixtureConfiguration(exampleRepositoryRoot(testDirectory));
-
-    // Commands still become skills for Codex, so dropping skills alone would
-    // leave the shared root populated; dropping both empties every intake.
-    const result = compile({ ...configuration, skills: [], commands: [] }, createDefaultAdapters());
-
-    expect(result.diagnostics.filter((d) => d.code.endsWith('_DISCOVERY_OVERLAP'))).toEqual([]);
+    // Copilot and OpenCode each scan two skill directories another provider
+    // owns, and AI Config used to report that as `SKILL_DISCOVERY_OVERLAP`.
+    // Every copy is compiled from the same canonical skill, OpenCode and
+    // Copilot both deduplicate by name, and the ambiguity that remains is a
+    // defect in those tools rather than something a `.ai/` author can act on.
+    // Nothing in the compiler looks at the enabled set now, and this is what
+    // holds it to that.
+    expect(together.sort()).toEqual(alone.sort());
   });
 
   it('produces byte-identical AGENTS.md from the Codex and OpenCode adapters', async () => {
