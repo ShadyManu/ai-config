@@ -1,7 +1,6 @@
 export type {
   CompileResult,
   FileContent,
-  ForeignIntake,
   GeneratedFile,
   ProviderAdapter,
   ProviderExtensionDefinition,
@@ -15,6 +14,7 @@ export type {
   DeprecatedOverrideField,
   OverrideField,
   OverrideFieldType,
+  OverridePassthrough,
   OverrideTarget,
   OverrideValidation,
   ProviderOverrideSchema,
@@ -46,7 +46,7 @@ export type {
 } from './domain/configuration.js';
 export { enabledProviders, sourceDirectory } from './domain/configuration.js';
 
-export type { CrossProviderCode, DiagnosticCode } from './domain/codes.js';
+export type { DiagnosticCode } from './domain/codes.js';
 export { DIAGNOSTIC_CODES } from './domain/codes.js';
 
 export type { Diagnostic, DiagnosticSeverity } from './domain/diagnostic.js';
@@ -96,6 +96,18 @@ export {
 } from './scaffold/scaffold.js';
 export type { RemovalOutcome } from './scaffold/remove.js';
 export { removeArtifact, removeOrphanedOverrides } from './scaffold/remove.js';
+export type {
+  CanonicalArtifact,
+  NameMismatch,
+  RenameOutcome,
+  RenamedPath,
+} from './scaffold/rename.js';
+export {
+  alignArtifactName,
+  canonicalArtifactAt,
+  readNameMismatch,
+  renameArtifact,
+} from './scaffold/rename.js';
 export { AI_DIRECTORY, SKILL_ENTRYPOINT } from './parse/discover.js';
 export { NAME_MAX_LENGTH, NAME_PATTERN, checkName } from './parse/name.js';
 export { normalizeGeneratedText } from './parse/text.js';

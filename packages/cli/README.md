@@ -68,6 +68,7 @@ refined it.
 | `aiconfig rules` | Print what is generated where, and what each provider accepts |
 | `aiconfig add <kind> <name>` | Create an instruction, agent, skill or command |
 | `aiconfig remove <kind> <name>` | Delete an artifact and every override written for it |
+| `aiconfig rename <kind> <from> <to>` | Rename an artifact, the file or directory holding it, and its overrides |
 | `aiconfig override <action>` | Create, list or remove provider-specific options |
 | `aiconfig providers <action>` | Enable or disable a provider |
 | `aiconfig restore <path>` | Replace one generated file with the version AI Config makes |

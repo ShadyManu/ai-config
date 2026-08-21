@@ -21,6 +21,7 @@ import {
   overrideTargets,
   removeArtifact,
   removeOverride,
+  renameArtifact,
   sourceDirectory,
 } from '@aiconfig/core';
 
@@ -470,6 +471,60 @@ export const runRemove = async (context: CommandContext): Promise<number> => {
   }
   for (const removed of outcome.removed) {
     streams.out(`Removed ${removed}`);
+  }
+  streams.out('');
+  streams.out('Run: aiconfig sync');
+  return EXIT_OK;
+};
+
+/**
+ * Renames a canonical artifact, everything named after it, and its `name` field.
+ *
+ * The counterpart of what the editor does when the frontmatter and the path
+ * stop agreeing: one operation, so a shell and the view cannot leave a project
+ * in different states.
+ */
+export const runRename = async (context: CommandContext): Promise<number> => {
+  const { fileSystem, root, streams, options } = context;
+  const [kindArgument, from, to] = options.positionals;
+  const kind = kindArgument as SourceKind;
+
+  if (from === undefined || to === undefined) {
+    streams.err(`Usage: aiconfig rename <instruction|agent|skill|command> <from> <to>.`);
+    return EXIT_FAILED;
+  }
+
+  const outcome = await renameArtifact(fileSystem, root, kind, from, to);
+
+  if (options.json) {
+    streams.out(
+      renderJson({
+        schema: JSON_SCHEMA_VERSION,
+        command: 'rename',
+        ok: outcome.ok,
+        moved: outcome.ok ? outcome.moved : null,
+        diagnostics: outcome.ok ? [] : outcome.diagnostics.map(jsonDiagnostic),
+      }),
+    );
+    return outcome.ok ? EXIT_OK : EXIT_FAILED;
+  }
+
+  if (!outcome.ok) {
+    streams.err('AI Config');
+    for (const line of renderDiagnostics(outcome.diagnostics, 'error')) {
+      streams.err(line);
+    }
+    return EXIT_FAILED;
+  }
+
+  streams.out('AI Config');
+  streams.out('');
+  if (outcome.moved.length === 0) {
+    streams.out(`The ${kind} is already named '${to}'.`);
+    return EXIT_OK;
+  }
+  for (const move of outcome.moved) {
+    streams.out(`Renamed ${move.from} -> ${move.to}`);
   }
   streams.out('');
   streams.out('Run: aiconfig sync');

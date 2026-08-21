@@ -39,7 +39,7 @@ export const parseConfig = (
       diagnostics: [
         diagnostic(
           'CONFIG_INVALID_YAML',
-          `Could not parse ${CONFIG_PATH}: ${parsed.reason}`,
+          `Could not parse ${CONFIG_PATH}: ${parsed.reason}.${parsed.explanation === undefined ? '' : ` ${parsed.explanation}`}`,
           parsed.position?.line,
           parsed.position?.column,
         ),

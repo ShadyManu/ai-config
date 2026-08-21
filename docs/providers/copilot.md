@@ -52,6 +52,21 @@ A skill override carries VS Code's `argument-hint`, `user-invocable`,
 Skills specification fields, including experimental `allowed-tools`, remain in
 the canonical `SKILL.md`.
 
+## Skill discovery
+
+Copilot scans `.github/skills`, `.claude/skills` and `.agents/skills`, so
+enabling Claude Code or Codex beside it makes the same skill reachable from more
+than one root.
+
+AI Config does not report this. Every copy is compiled from the same canonical
+skill and is byte-for-byte identical, so which one Copilot binds to cannot change
+what the skill does, and there is nothing in `.ai/` that would change the
+situation: Claude Code reads only `.claude/skills` and Codex only
+`.agents/skills`, so neither copy can be withheld.
+
+The same reasoning applies to the root `AGENTS.md` Copilot reads, described
+under **Overlap with `AGENTS.md`** above.
+
 Sources, read 2026-08-20:
 
 - <https://docs.github.com/en/copilot/reference/custom-agents-configuration>

@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 
 import type {
   AnalysisResult,
+  FileState,
   PlanAction,
   ProviderAdapter,
   ProviderId,
@@ -11,6 +12,7 @@ import type {
 } from '@aiconfig/core';
 import { overridePath, stateOf } from '@aiconfig/core';
 
+import { generatedUri } from './generated-document.js';
 import { candidatesFor, targetFor } from './wizards/overrides.js';
 
 export const DRIFTED_FILE_CONTEXT = 'aiconfig.driftedFile';
@@ -291,21 +293,18 @@ export class AiConfigTreeProvider implements vscode.TreeDataProvider<Node>, vsco
         const item = new vscode.TreeItem(action.path, vscode.TreeItemCollapsibleState.None);
         item.description = `${state}${action.executable === true ? ' · executable' : ''}`;
         item.resourceUri = this.uriFor(action.path);
+        item.tooltip = fileTooltip(state);
         item.iconPath = new vscode.ThemeIcon(
           state === 'drift' ? 'diff-modified' : 'circle-outline',
         );
 
         if (state === 'drift') {
           // Only a drifted file has both a generated version to compare against
-          // and a restore that makes sense.
+          // and a restore that makes sense, so only it carries those actions.
           item.contextValue = DRIFTED_FILE_CONTEXT;
-          item.command = {
-            command: 'aiconfig.showDiff',
-            title: 'Show Diff',
-            arguments: [action.path],
-          };
         }
 
+        item.command = fileCommand(state, action.path, this.uriFor(action.path));
         return item;
       }
 
@@ -413,6 +412,60 @@ const configurationItems = (
       overridable: remaining.length > 0,
     };
   });
+};
+
+/**
+ * What clicking a generated file row does.
+ *
+ * Every row here names something the reader can look at, so every row opens
+ * something. Which thing depends on what exists: a drifted file has two
+ * versions and the interesting view is the difference between them, a file that
+ * has not been written yet has only the version a synchronization would write,
+ * and everything else — stale, orphaned, or a conflicting file AI Config does
+ * not own — is a real file on disk, which is exactly what the reader wants to
+ * see.
+ *
+ * Previously only the drifted rows carried a command, because only they had a
+ * diff and a restore to offer. That was a decision about those two actions, not
+ * about opening, and it left every other row inert: a path, a state, and
+ * nothing at all when clicked.
+ */
+const fileCommand = (state: FileState, relativePath: string, file: vscode.Uri): vscode.Command => {
+  switch (state) {
+    case 'drift':
+      return { command: 'aiconfig.showDiff', title: 'Show Diff', arguments: [relativePath] };
+    case 'missing':
+      // `create` and `restore` are both planned only when nothing is at the
+      // path, so there is no file to open — but there is a generated version,
+      // and previewing it answers "what is about to appear here".
+      return {
+        command: 'vscode.open',
+        title: 'Preview Generated Version',
+        arguments: [generatedUri(relativePath)],
+      };
+    case 'synced':
+    case 'stale':
+    case 'orphaned':
+    case 'conflict':
+      return { command: 'vscode.open', title: 'Open', arguments: [file] };
+  }
+};
+
+const fileTooltip = (state: FileState): string => {
+  switch (state) {
+    case 'synced':
+      return 'Up to date.';
+    case 'stale':
+      return 'On disk, and the next synchronization will rewrite it.';
+    case 'missing':
+      return 'Not on disk. The next synchronization will create it; click to preview it.';
+    case 'orphaned':
+      return 'No longer produced by any provider. The next synchronization will remove it.';
+    case 'drift':
+      return 'Modified outside AI Config. Click to compare it with the generated version.';
+    case 'conflict':
+      return 'Exists but was not created by AI Config, so it is never overwritten or removed.';
+  }
 };
 
 const providerIcon = (provider: ProviderReport): vscode.ThemeIcon => {

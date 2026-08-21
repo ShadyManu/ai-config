@@ -3,7 +3,8 @@ import * as vscode from 'vscode';
 
 import { countBySeverity, stateOf } from '@aiconfig/core';
 
-import { Controller, GENERATED_SCHEME } from './controller.js';
+import { Controller } from './controller.js';
+import { GENERATED_SCHEME, generatedUri } from './generated-document.js';
 import { Logger } from './logger.js';
 import {
   commandTargetOverride,
@@ -209,7 +210,7 @@ const showDiff = async (controller: Controller, target: unknown): Promise<void> 
     return;
   }
 
-  const generated = vscode.Uri.from({ scheme: GENERATED_SCHEME, path: `/${relativePath}` });
+  const generated = generatedUri(relativePath);
   const actual = vscode.Uri.file(path.join(root, ...relativePath.split('/')));
 
   await vscode.commands.executeCommand(

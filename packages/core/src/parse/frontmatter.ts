@@ -17,9 +17,24 @@ export type FrontmatterResult =
       readonly code:
         'FRONTMATTER_UNTERMINATED' | 'FRONTMATTER_INVALID_YAML' | 'FRONTMATTER_NOT_A_MAP';
       readonly reason: string;
+      /**
+       * A sentence naming the mistake behind `reason`, when the source makes it
+       * identifiable. Callers append it to the message; `reason` alone is the
+       * parser's wording and often names the symptom rather than the cause.
+       */
+      readonly explanation: string | undefined;
       readonly line: number | undefined;
       readonly column: number | undefined;
     };
+
+/** The full sentence a caller reports for a failed parse. */
+export const frontmatterMessage = (failure: {
+  readonly reason: string;
+  readonly explanation: string | undefined;
+}): string =>
+  failure.explanation === undefined
+    ? `${failure.reason}.`
+    : `${failure.reason}. ${failure.explanation}`;
 
 /**
  * Splits YAML frontmatter from a Markdown body.
@@ -55,6 +70,7 @@ export const parseFrontmatter = (text: string): FrontmatterResult => {
       ok: false,
       code: 'FRONTMATTER_UNTERMINATED',
       reason: `frontmatter opened with '${DELIMITER}' but was never closed`,
+      explanation: `Add a closing '${DELIMITER}' line after the last field, before the body.`,
       line: 1,
       column: 1,
     };
@@ -70,6 +86,7 @@ export const parseFrontmatter = (text: string): FrontmatterResult => {
       ok: false,
       code: 'FRONTMATTER_INVALID_YAML',
       reason: parsed.reason,
+      explanation: parsed.explanation,
       line: parsed.position?.line ?? 2,
       column: parsed.position?.column,
     };
@@ -88,6 +105,7 @@ export const parseFrontmatter = (text: string): FrontmatterResult => {
       ok: false,
       code: 'FRONTMATTER_NOT_A_MAP',
       reason: 'frontmatter must be a YAML mapping of fields',
+      explanation: undefined,
       line: 2,
       column: 1,
     };

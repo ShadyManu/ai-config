@@ -10,6 +10,7 @@ export type CommandName =
   | 'rules'
   | 'add'
   | 'remove'
+  | 'rename'
   | 'override'
   | 'providers'
   | 'restore'
@@ -23,6 +24,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
   'rules',
   'add',
   'remove',
+  'rename',
   'override',
   'providers',
   'restore',
@@ -70,6 +72,7 @@ const FLAGS_BY_COMMAND: Readonly<Record<CommandName, readonly string[]>> = {
   rules: ['cwd'],
   add: ['cwd', 'json', 'description', 'body-file', 'apply-to', 'with'],
   remove: ['cwd', 'json'],
+  rename: ['cwd', 'json'],
   override: ['cwd', 'json', 'force', 'set'],
   providers: ['cwd', 'json'],
   restore: ['cwd', 'json'],
@@ -216,6 +219,17 @@ const checkPositionals = (command: CommandName, rest: readonly string[]): string
       return extra.length === 0 ? undefined : `Unexpected argument '${extra[0] ?? ''}'.`;
     }
 
+    case 'rename': {
+      const [kind, from, to, ...extra] = rest;
+      if (kind === undefined || !(ARTIFACT_KINDS as readonly string[]).includes(kind)) {
+        return `Usage: aiconfig rename <${ARTIFACT_KINDS.join('|')}> <from> <to>.`;
+      }
+      if (from === undefined || to === undefined) {
+        return `Usage: aiconfig rename ${kind} <from> <to>.`;
+      }
+      return extra.length === 0 ? undefined : `Unexpected argument '${extra[0] ?? ''}'.`;
+    }
+
     case 'providers': {
       const [action, provider, ...extra] = rest;
       if (action === undefined || !(PROVIDER_ACTIONS as readonly string[]).includes(action)) {
@@ -282,6 +296,7 @@ Commands:
   rules                Print what is generated where, and what each provider accepts
   add <kind> <name>    Create a canonical instruction, agent, skill or command
   remove <kind> <name> Delete an artifact and every override written for it
+  rename <kind> <a> <b> Rename an artifact, its file or directory, and its overrides
   override <action>    Create, list or remove provider-specific options
   providers <action>   Enable or disable a provider
   restore <path>       Replace one generated file with the version AI Config makes
@@ -294,6 +309,7 @@ Scaffolding:
   aiconfig add command     <name> --description <text> [--body-file <path>]
 
   aiconfig remove <instruction|agent|skill|command> <name>
+  aiconfig rename <instruction|agent|skill|command> <from> <to>
 
   aiconfig override create <provider> <kind> <id> [--set key=value]... [--force]
   aiconfig override list   [provider]

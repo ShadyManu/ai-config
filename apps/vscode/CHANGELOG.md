@@ -10,6 +10,128 @@ its own copy of the same compiler. Two different versions in one repository
 would emit different files from the same `.ai/`, and each would read the other's
 output as drift. The shared number is what says which compiler you are running.
 
+## [1.4.0] - 2026-08-22
+
+### Added
+
+- Renaming an artifact follows, whichever half of it you rename. A canonical
+  artifact carries its name twice — in the path, and in the `name` field — and
+  they have to agree. Change `name` in the file and the file or directory is
+  renamed to match, together with every provider override written for it under
+  `.ai/providers/`. Rename the file or directory in the explorer and the `name`
+  field is rewritten instead. Either way the project is valid again on save.
+
+  Which of the two you edited is worked out from the state before the edit, not
+  guessed, so neither direction undoes the other — renaming a directory in the
+  explorer is not silently renamed back. When it cannot be worked out, because
+  the project was already in this state when it was opened or because both names
+  are taken, you are asked which one wins rather than having one picked for you.
+
+  A rename that would overwrite something is refused and nothing moves. The
+  generated provider files are not renamed directly: they become orphans the
+  moment the source moves, and the synchronization that follows removes them
+  after re-verifying each one still holds the bytes AI Config wrote, so a
+  generated file you had edited is reported rather than discarded.
+
+  The move is applied as a workspace edit — the same operation the explorer's own
+  Rename performs — so a `SKILL.md` open while its directory is renamed follows
+  the move instead of becoming a tab pointing at a path that no longer exists.
+  That tab holds the file you were editing, since editing its `name` is what
+  asked for the rename in the first place.
+
+### Changed
+
+- OpenCode agent overrides know every model option OpenCode documents:
+  `reasoningEffort`, `textVerbosity`, `reasoningSummary`, `thinking` and
+  `include`. All five were flagged in the Problems panel as fields AI Config did
+  not recognize, which is what a documented option must never be. The guided
+  flows now offer them too.
+
+- An OpenCode agent option AI Config still does not know is shown as a hint
+  rather than a yellow warning. OpenCode documents an open agent configuration —
+  any option it does not define is forwarded to the model provider as a model
+  option — so an unfamiliar field there is probably correct, and a warning said
+  otherwise on every save.
+
+  It is still shown. A typo looks exactly like a model option nobody has
+  documented yet, and saying nothing would let `temperatur: 0.5` through in
+  silence; the hint claims only that nothing checked the field, and lists the
+  ones AI Config does know in case one of them was meant. Every other provider's
+  schema is documented as closed and still warns, and a canonical field or a
+  retired one is refused outright everywhere.
+
+### Fixed
+
+- Renaming an artifact's file no longer deletes the provider overrides written
+  for it. An override is addressed by name — `.ai/providers/claude/agents/
+  reviewer.yaml` — so once `reviewer.md` became `auditor.md`, the override
+  refined an artifact that no longer existed and the synchronization that runs
+  on save removed it as an orphan. A file you wrote, gone without being asked.
+
+  Both halves of a rename now carry the overrides with them: changing the `name`
+  field already did, and renaming the file or directory now does too.
+
+  An instruction, agent or command scaffolded by AI Config declares no `name` at
+  all, so renaming its file leaves nothing in the file to recognize the rename
+  by. Two things stand in for it. A rename made in the explorer is reported by
+  the editor itself, which is exact — it works even when the file is renamed and
+  rewritten in one go. A rename made anywhere else, by `git mv` or another
+  program, is matched by content: same kind, same description, same body, a
+  different name than the previous refresh saw.
+
+  That second match is deliberately strict, because it is an inference rather
+  than a fact. An artifact renamed *and* edited outside the editor, or one that
+  reads exactly like another, reports nothing and behaves as before rather than
+  attaching one artifact's settings to another. A refresh that merely observes
+  a missing artifact preserves its overrides; the explicit Delete action still
+  removes the artifact and its overrides together.
+
+- Every generated file listed under a provider opens something when clicked.
+  Only the drifted rows did: they were the ones with a diff to show and a
+  restore to offer, and that decision about those two actions quietly became the
+  answer for clicking as well. A row naming a stale, orphaned or conflicting file
+  did nothing at all, which reads as broken rather than as deliberate.
+
+  A drifted file still opens the diff. A stale, orphaned or conflicting file
+  opens the file itself — a conflicting one especially, since the question it
+  raises is "what is this file AI Config will not touch?". A missing file has
+  nothing on disk yet, so it opens a read-only preview of what the next
+  synchronization would write there. Every row also carries a tooltip saying
+  what its state means.
+
+### Removed
+
+- The `SKILL_DISCOVERY_OVERLAP` warning. It reported that enabling several
+  providers makes the same skill reachable from several directories, and that
+  none of them documents which copy wins.
+
+  The condition is real; the warning was not actionable. Every copy is compiled
+  from the same canonical skill and is identical, Copilot and OpenCode both
+  deduplicate by name, and nothing you can write in `.ai/` changes it — Claude
+  Code reads only `.claude/skills` and Codex only `.agents/skills`, so no copy
+  can be withheld. It sat in the Problems panel on every save of an ordinary
+  four-provider project with no way to resolve or silence it, which is how a
+  Problems panel stops being read.
+
+  What the duplication actually costs each tool is now in
+  `docs/providers/opencode.md` and `docs/providers/copilot.md` — including an
+  open defect in OpenCode's own discovery that costs prompt cache reuse. Those
+  belong to those tools, not to your configuration.
+
+- A YAML error in a canonical file now explains the mistake instead of only
+  quoting the parser. "Unexpected scalar at node end" is what the parser says
+  about a quoted `description:` containing another quotation mark, which is the
+  most likely way to break a file: scaffolding writes `description: "TODO: …"`
+  already quoted, and pasted prose brings its own quotes. The message now
+  continues with the offending character, its column, and the three ways out —
+  escape it, switch the outer quotes, or use a block scalar. Unterminated
+  quotes, tabs used as indentation, and unquoted values containing a colon are
+  explained the same way.
+
+- Diagnostics for YAML errors point at the line and column that failed rather
+  than at the first line of the frontmatter block, so **Go to File** lands on
+  the mistake.
+
 ## [1.3.1] - 2026-08-20
 
 ### Changed

@@ -196,6 +196,19 @@ export class NodeFileSystem implements FileSystem {
     }
   }
 
+  public async rename(from: string, to: string): Promise<void> {
+    // Checked rather than left to the platform: POSIX `rename` replaces an
+    // existing file without a word, and this moves the author's own sources.
+    // The window between this check and the move is not closed by it, but the
+    // caller has already refused the collision it could see, and nothing in AI
+    // Config writes to `.ai/` concurrently.
+    if (await this.exists(to)) {
+      throw Object.assign(new Error(`EEXIST: '${to}' already exists`), { code: 'EEXIST' });
+    }
+    await fs.mkdir(path.dirname(to), { recursive: true });
+    await fs.rename(from, to);
+  }
+
   public async deleteFile(target: string): Promise<void> {
     try {
       await fs.unlink(target);

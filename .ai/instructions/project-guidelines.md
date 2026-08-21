@@ -10,6 +10,10 @@ This is a public open-source repository. Treat all production code as library-qu
 
 Prefer correctness, clarity, maintainability, testability, and explicit behavior over speed of implementation.
 
+The extensions and the CLI are already published. That means, for *every* change done in the codebase, ensure that there is no regression, and verify its retro-compatibility.
+
+Whenever updating an AI agent, command, instruction or skill, update it inside the .ai/ folder only.
+
 ## General engineering rules
 
 - Use strict TypeScript.
@@ -56,6 +60,7 @@ For every meaningful change:
 2. run the repository quality gates documented in `docs/contributing.md`;
 3. review the diff;
 4. remove dead code and temporary debugging output.
+5. ensure to keep all the docs, readme and contribution updated
 
 Do not declare a task complete while tests, typecheck, lint, or build are failing.
 The complete gate is `pnpm format:check`, `pnpm typecheck`, `pnpm lint`,
@@ -76,6 +81,7 @@ and remaining risk.
   intermediate-value assertion is not sufficient evidence by itself.
 - Keep tests deterministic, isolated, independent of execution order, and free
   of network, real user configuration, uncontrolled clocks, or arbitrary sleeps.
+- Never change the output of an old test just to accomplish something broken. Before changing an existing test, ensure what is the real expected output, as per requirement.
 
 ## Public API
 

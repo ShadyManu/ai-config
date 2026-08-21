@@ -155,10 +155,14 @@ describe('deleting the canonical file by hand', () => {
       expect(errors, `${kind}: errors after hand-deleting`).toEqual([]);
       expect((await sync(fileSystem, fileSystem.root, adapters, {})).ok).toBe(true);
 
-      // Both routes end in the same place: what the artifact produced is gone,
-      // and so are the overrides that refined it.
+      // Generated output is gone, while authored overrides remain available
+      // for a rename, branch switch, or explicit restoration.
       expect(generated(fileSystem), `${kind}: generated files left behind`).toEqual([]);
-      expect(overridesLeft(fileSystem), `${kind}: overrides left behind`).toEqual([]);
+      expect(overridesLeft(fileSystem), `${kind}: authored overrides were lost`).toEqual(
+        providersConfiguring(kind).map(
+          (provider) => `.ai/providers/${provider}/${kind}s/${NAME[kind]}.yaml`,
+        ),
+      );
     });
   }
 });

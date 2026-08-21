@@ -17,7 +17,7 @@ import {
   runSync,
   runValidate,
 } from './commands.js';
-import { runAdd, runOverride, runProviders, runRemove } from './scaffold.js';
+import { runAdd, runOverride, runProviders, runRemove, runRename } from './scaffold.js';
 import { VERSION } from './version.js';
 import type { OutputStreams } from './output.js';
 import { consoleStreams } from './output.js';
@@ -102,6 +102,8 @@ export const runCli = async (
         return await runAdd(context);
       case 'remove':
         return await runRemove(context);
+      case 'rename':
+        return await runRename(context);
       case 'override':
         return await runOverride(context);
       case 'providers':

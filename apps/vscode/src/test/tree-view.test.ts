@@ -1,9 +1,10 @@
 import * as assert from 'node:assert/strict';
 import * as vscode from 'vscode';
 
-import type { AnalysisResult, PlanAction } from '@aiconfig/core';
-import { MANIFEST_VERSION, SUPPORTED_SCHEMA_VERSION } from '@aiconfig/core';
+import type { AnalysisResult, FileState, PlanAction } from '@aiconfig/core';
+import { MANIFEST_VERSION, SUPPORTED_SCHEMA_VERSION, stateOf } from '@aiconfig/core';
 
+import { GENERATED_SCHEME } from '../generated-document.js';
 import {
   AiConfigTreeProvider,
   SUPPORT_URL,
@@ -21,13 +22,16 @@ const DRIFTED_PATH = '.claude/agents/reviewer.md';
 /** The tree's own element type, which it deliberately does not export. */
 type TreeNode = Parameters<AiConfigTreeProvider['getTreeItem']>[0];
 
-const driftedAction: PlanAction = {
-  kind: 'blocked',
-  reason: 'drift',
+/** What every planned action for this path carries, whatever its kind. */
+const PLANNED = {
   path: DRIFTED_PATH,
   providers: ['claude'],
   source: 'agents/reviewer',
-};
+} as const;
+
+const GENERATED = { kind: 'text', value: 'generated' } as const;
+
+const driftedAction: PlanAction = { ...PLANNED, kind: 'blocked', reason: 'drift' };
 
 /**
  * The minimum an analysis needs to render one drifted Claude Code file.
@@ -201,6 +205,109 @@ suite('AI Config tree view', () => {
     assert.equal(commandTargetPath(item.command?.arguments?.[0]), DRIFTED_PATH);
 
     tree.dispose();
+  });
+
+  /**
+   * Every generated file row opens something.
+   *
+   * Only the drifted rows used to carry a command, because only they had a diff
+   * and a restore to offer — a decision about those two actions that quietly
+   * became the answer for clicking as well, leaving a row that named a real
+   * file and did nothing at all when clicked. The table below is the whole
+   * state space, so a state added later cannot slip through inert.
+   */
+  const CLICKS: readonly {
+    readonly state: FileState;
+    readonly action: PlanAction;
+    readonly command: string;
+    readonly opens: 'the file' | 'the generated version' | 'a diff';
+  }[] = [
+    {
+      state: 'drift',
+      action: driftedAction,
+      command: 'aiconfig.showDiff',
+      opens: 'a diff',
+    },
+    {
+      state: 'conflict',
+      action: { ...PLANNED, kind: 'blocked', reason: 'untracked' },
+      command: 'vscode.open',
+      opens: 'the file',
+    },
+    {
+      state: 'stale',
+      action: { ...PLANNED, kind: 'update', content: GENERATED, hash: 'hash' },
+      command: 'vscode.open',
+      opens: 'the file',
+    },
+    {
+      state: 'orphaned',
+      action: { ...PLANNED, kind: 'delete', hash: 'hash' },
+      command: 'vscode.open',
+      opens: 'the file',
+    },
+    {
+      state: 'missing',
+      action: { ...PLANNED, kind: 'create', content: GENERATED, hash: 'hash' },
+      command: 'vscode.open',
+      opens: 'the generated version',
+    },
+  ];
+
+  for (const { state, action, command, opens } of CLICKS) {
+    test(`a ${state} file opens ${opens} when clicked`, () => {
+      const analysis = analysisWithDrift();
+      const tree = new AiConfigTreeProvider();
+      tree.update(ROOT, {
+        ...analysis,
+        providers: [{ ...analysis.providers[0]!, actions: [action] }],
+      });
+
+      const item = tree.getTreeItem(driftedFileElement(tree));
+      assert.equal(stateOf(action), state, 'the fixture should produce the state under test');
+      assert.equal(item.command?.command, command);
+
+      const argument: unknown = item.command?.arguments?.[0];
+      if (opens === 'a diff') {
+        assert.equal(commandTargetPath(argument), DRIFTED_PATH);
+      } else if (opens === 'the generated version') {
+        // A read-only preview, because `create` and `restore` are planned only
+        // when nothing is at the path: there is no file to open yet.
+        assert.equal((argument as vscode.Uri).scheme, GENERATED_SCHEME);
+        assert.equal((argument as vscode.Uri).path, `/${DRIFTED_PATH}`);
+      } else {
+        assert.equal((argument as vscode.Uri).scheme, 'file');
+        assert.ok((argument as vscode.Uri).fsPath.endsWith('reviewer.md'));
+      }
+
+      // A tooltip on every row, so a state that cannot be acted on still says
+      // what it means.
+      assert.ok(typeof item.tooltip === 'string' && item.tooltip.length > 0);
+
+      tree.dispose();
+    });
+  }
+
+  test('offers the diff and restore actions on the drifted row only', () => {
+    const analysis = analysisWithDrift();
+
+    for (const { state, action } of CLICKS) {
+      const tree = new AiConfigTreeProvider();
+      tree.update(ROOT, {
+        ...analysis,
+        providers: [{ ...analysis.providers[0]!, actions: [action] }],
+      });
+
+      // Opening is offered everywhere; comparing and restoring stay where they
+      // mean something, which is what the context value gates.
+      assert.equal(
+        tree.getTreeItem(driftedFileElement(tree)).contextValue,
+        state === 'drift' ? DRIFTED_FILE_CONTEXT : undefined,
+        state,
+      );
+
+      tree.dispose();
+    }
   });
 
   test('resolves nothing when a command is invoked without a usable target', () => {

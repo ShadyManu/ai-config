@@ -2,7 +2,6 @@ import type {
   AiConfiguration,
   CompileResult,
   Diagnostic,
-  ForeignIntake,
   FrontmatterField,
   GeneratedFile,
   ProviderAdapter,
@@ -35,14 +34,6 @@ export {
   OPENCODE_OVERRIDES,
 } from './overrides.js';
 
-// Skill roots OpenCode reads that another adapter owns. Spelled out literally
-// rather than imported: an adapter may not depend on another adapter.
-const CLAUDE_SKILLS_ROOT = '.claude/skills';
-const SHARED_SKILLS_ROOT = '.agents/skills';
-
-const SKILL_OVERLAP_CONSEQUENCE =
-  'OpenCode scans .opencode/skills, .claude/skills and .agents/skills, so those skills are discovered from more than one root. OpenCode documents no resolution for a skill name that appears in several, so which copy wins is undefined.';
-
 /**
  * OpenCode adapter.
  *
@@ -64,27 +55,6 @@ export class OpenCodeAdapter implements ProviderAdapter {
     AGENTS_DIRECTORY,
     COMMANDS_DIRECTORY,
     SKILLS_DIRECTORY,
-  ];
-
-  /**
-   * OpenCode scans `.claude/skills` and `.agents/skills` alongside its own
-   * skills directory, so enabling Claude Code or Codex beside it means the same
-   * skill is discovered from several roots.
-   *
-   * No intake is declared for `AGENTS.md`: OpenCode owns that file, jointly
-   * with Codex when both are enabled, so it is not foreign to this provider.
-   */
-  public readonly alsoReads: readonly ForeignIntake[] = [
-    {
-      path: CLAUDE_SKILLS_ROOT,
-      code: 'SKILL_DISCOVERY_OVERLAP',
-      consequence: SKILL_OVERLAP_CONSEQUENCE,
-    },
-    {
-      path: SHARED_SKILLS_ROOT,
-      code: 'SKILL_DISCOVERY_OVERLAP',
-      consequence: SKILL_OVERLAP_CONSEQUENCE,
-    },
   ];
 
   /**

@@ -207,6 +207,30 @@ describe('override fields', () => {
     expect(result.options).toEqual({ nested: { other: true } });
   });
 
+  it('explains when a nested field leaf was uncommented at the top level', () => {
+    const result = validate(
+      { allow_implicit_invocation: true },
+      {
+        ...SCHEMA,
+        fields: [
+          ...SCHEMA.fields,
+          {
+            name: 'policy.allow_implicit_invocation',
+            type: { kind: 'boolean' },
+            description: 'Implicit invocation.',
+            documentation: 'https://example.invalid',
+          },
+        ],
+      },
+    );
+
+    expect(codes(result)).toEqual(['OVERRIDE_UNRECOGNIZED_FIELD']);
+    expect(result.diagnostics[0]?.message).toContain(
+      "Did you mean 'policy.allow_implicit_invocation'?",
+    );
+    expect(result.diagnostics[0]?.message).toContain('Uncomment its parent section as well.');
+  });
+
   it('produces no options when anything failed, so nothing partial is compiled', () => {
     const result = validate({ model: 'sonnet', effort: 3 });
     expect(result.options).toBeUndefined();

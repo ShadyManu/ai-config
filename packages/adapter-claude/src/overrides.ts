@@ -199,7 +199,8 @@ export const CLAUDE_SKILL_OVERRIDE: ProviderOverrideSchema = {
     {
       name: 'context',
       type: { kind: 'enum', values: ['fork'] },
-      description: 'Set to fork to run the skill in an isolated subagent context.',
+      description:
+        'Run the skill in an isolated subagent context. Omit this field to run it inline; the only accepted value is fork.',
       documentation: SKILLS_DOC,
     },
     {
@@ -318,7 +319,8 @@ export const CLAUDE_COMMAND_OVERRIDE: ProviderOverrideSchema = {
     {
       name: 'context',
       type: { kind: 'enum', values: ['fork'] },
-      description: 'Set to fork to run the command in an isolated subagent context.',
+      description:
+        'Run the command in an isolated subagent context. Omit this field to run it inline; the only accepted value is fork.',
       documentation: SKILLS_DOC,
     },
     {

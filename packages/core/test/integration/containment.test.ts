@@ -66,6 +66,9 @@ class RecordingFileSystem implements FileSystem {
   ): Promise<void> {
     return this.inner.writeFileAtomic(target, content, options);
   }
+  public rename(from: string, to: string): Promise<void> {
+    return this.inner.rename(from, to);
+  }
   public deleteFile(target: string): Promise<void> {
     return this.inner.deleteFile(target);
   }

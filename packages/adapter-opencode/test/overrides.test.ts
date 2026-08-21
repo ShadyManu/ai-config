@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import type { AiConfiguration, ProviderOverlay, SourceKind } from '@aiconfig/core';
+import { validateOverrideDocument } from '@aiconfig/core';
 
 import { opencodeAdapter } from '../src/index.js';
+import { OPENCODE_AGENT_OVERRIDE } from '../src/overrides.js';
 
 const CONFIGURATION: AiConfiguration = {
   instructions: [],
@@ -154,5 +156,170 @@ describe('OpenCode override schemas', () => {
         expect(field.documentation).toMatch(/^https:\/\/opencode\.ai\/docs\//);
       }
     }
+  });
+});
+
+/**
+ * OpenCode documents an open agent configuration: an option it does not define
+ * is passed through to the model provider as a model option.
+ *
+ * So AI Config cannot claim such an option is wrong — but it cannot claim it is
+ * right either, because a typo looks exactly the same from here. It says the one
+ * thing it knows, that nothing checked the option, and says it as a note rather
+ * than a warning. Reporting it as a warning told authors that correct,
+ * documented configuration was a mistake, on every single run.
+ */
+describe('OpenCode agent model options', () => {
+  const validate = (options: Record<string, unknown>) =>
+    validateOverrideDocument({ schema: 1, options }, OPENCODE_AGENT_OVERRIDE, {
+      provider: 'opencode',
+      sourcePath: '.ai/providers/opencode/agents/coder.yaml',
+    });
+
+  it('declares the pass-through the provider documents, with its source', () => {
+    expect(OPENCODE_AGENT_OVERRIDE.passthrough?.documentation).toBe(
+      'https://opencode.ai/docs/agents/',
+    );
+    expect(OPENCODE_AGENT_OVERRIDE.passthrough?.reason).toContain('model option');
+  });
+
+  it('accepts an option the schema does not declare, and notes that nothing checked it', () => {
+    const result = validate({ somethingNewNextRelease: 3 });
+
+    expect(result.diagnostics.map((entry) => [entry.code, entry.severity])).toEqual([
+      ['OVERRIDE_UNRECOGNIZED_FIELD', 'info'],
+    ]);
+    expect(result.diagnostics[0]?.message).toContain('model option');
+    expect(result.options).toEqual({ somethingNewNextRelease: 3 });
+  });
+
+  it('notes a top-level task, which OpenCode documents only as permission.task', () => {
+    // The field that started this: it looks like an OpenCode agent option and
+    // is not one, so a note here is the whole value of still reporting.
+    const result = validate({ task: 'anything' });
+
+    expect(result.diagnostics.map((entry) => entry.code)).toEqual(['OVERRIDE_UNRECOGNIZED_FIELD']);
+    expect(result.options).toEqual({ task: 'anything' });
+
+    // Nested under `permission`, it is a declared field and passes in silence.
+    expect(validate({ permission: { task: { '*': 'deny' } } }).diagnostics).toEqual([]);
+  });
+
+  it('writes an undeclared option into the generated agent unchanged', () => {
+    const result = opencodeAdapter.compile(
+      CONFIGURATION,
+      overlay('agent', 'coder', { somethingNewNextRelease: 'yes' }),
+    );
+
+    // Quoted by the renderer, as any value YAML would otherwise read as a
+    // boolean is: written through does not mean written out verbatim.
+    expect(fileAt('.opencode/agents/coder.md', result)).toContain('somethingNewNextRelease: "yes"');
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it('declares every model option the documentation shows on an agent', () => {
+    // Read from https://opencode.ai/docs/models/, which states these may be set
+    // per agent and that the agent config overrides the global one. Declared so
+    // a documented option is never reported as one AI Config has not heard of.
+    expect(
+      OPENCODE_AGENT_OVERRIDE.fields
+        .filter((field) => field.documentation.includes('/models/'))
+        .map((field) => field.name),
+    ).toEqual(['reasoningEffort', 'textVerbosity', 'reasoningSummary', 'thinking', 'include']);
+  });
+
+  it('leaves the accepted values of a model option open', () => {
+    for (const name of ['reasoningEffort', 'textVerbosity', 'reasoningSummary']) {
+      const field = OPENCODE_AGENT_OVERRIDE.fields.find((candidate) => candidate.name === name);
+      // Free strings rather than enums: the accepted values belong to the model
+      // provider, not to OpenCode, so pinning them here would reject whatever
+      // the next model accepts.
+      expect(field?.type, name).toEqual({ kind: 'string' });
+      expect(field?.suggestions?.length, name).toBeGreaterThan(0);
+    }
+  });
+
+  it('emits every declared model option beside the fields OpenCode defines', () => {
+    const result = opencodeAdapter.compile(
+      CONFIGURATION,
+      overlay('agent', 'coder', {
+        reasoningEffort: 'high',
+        textVerbosity: 'low',
+        reasoningSummary: 'auto',
+        thinking: { type: 'enabled', budgetTokens: 16000 },
+        include: ['reasoning.encrypted_content'],
+      }),
+    );
+
+    const value = fileAt('.opencode/agents/coder.md', result);
+    expect(value).toContain('reasoningEffort: high');
+    expect(value).toContain('textVerbosity: low');
+    expect(value).toContain('reasoningSummary: auto');
+    expect(value).toContain('budgetTokens: 16000');
+    expect(value).toContain('reasoning.encrypted_content');
+    // Declared fields are checked, so none of this is reported.
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it('still refuses a canonical field and a retired one', () => {
+    // Pass-through widens what is accepted, not what may be redefined.
+    expect(validate({ description: 'no' }).diagnostics.map((entry) => entry.code)).toEqual([
+      'OVERRIDE_CANONICAL_FIELD',
+    ]);
+    expect(validate({ tools: { bash: true } }).diagnostics.map((entry) => entry.code)).toEqual([
+      'OVERRIDE_UNKNOWN_FIELD',
+    ]);
+  });
+
+  it('still checks a field it does declare', () => {
+    // Pass-through applies to fields the schema does not name. One it does name
+    // is validated as strictly as ever, or declaring a field would leave an
+    // author worse off than not declaring it.
+    expect(validate({ temperature: 4 }).diagnostics.map((entry) => entry.code)).toEqual([
+      'OVERRIDE_VALUE_INVALID',
+    ]);
+  });
+
+  it('emits an undeclared option after the declared ones, in a stable order', () => {
+    const result = opencodeAdapter.compile(
+      CONFIGURATION,
+      overlay('agent', 'coder', { zebra: 1, temperature: 0.1, alpha: 2, mode: 'all' }),
+    );
+
+    const value = fileAt('.opencode/agents/coder.md', result);
+    const order = ['description', 'mode', 'temperature', 'alpha', 'zebra'].map((key) =>
+      value.indexOf(`${key}:`),
+    );
+
+    // Declared fields in the schema's order, then everything else sorted.
+    // Generated output has to be byte-identical between runs, and the order a
+    // YAML mapping happened to be written in is not a stable input.
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+    expect(order.every((index) => index >= 0)).toBe(true);
+  });
+
+  it('still refuses a value it could not write back out', () => {
+    expect(validate({ whatever: null }).diagnostics.map((entry) => entry.code)).toEqual([
+      'OVERRIDE_VALUE_INVALID',
+    ]);
+  });
+});
+
+describe('OpenCode command overrides stay closed', () => {
+  it('reports an undeclared command field, because OpenCode documents no pass-through', () => {
+    const command = opencodeAdapter.overrides?.find((schema) => schema.kind === 'command');
+    expect(command?.passthrough).toBeUndefined();
+
+    const result = validateOverrideDocument(
+      { schema: 1, options: { unknownThing: 'x' } },
+      command!,
+      { provider: 'opencode', sourcePath: '.ai/providers/opencode/commands/ship.yaml' },
+    );
+
+    // A warning, not a note: OpenCode documents what a command accepts and says
+    // nothing about accepting more, so an undeclared field here is a mistake.
+    expect(result.diagnostics.map((entry) => [entry.code, entry.severity])).toEqual([
+      ['OVERRIDE_UNRECOGNIZED_FIELD', 'warning'],
+    ]);
   });
 });

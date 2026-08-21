@@ -8,7 +8,6 @@ import { sha256 } from '../manifest/hash.js';
 import { compareStrings } from '../domain/ordering.js';
 import { checkGeneratedPath } from '../path/safe-path.js';
 import { AI_DIRECTORY } from '../parse/discover.js';
-import { crossProviderDiagnostics } from './cross-provider.js';
 import type { ProviderOverlay } from '../overlay/overlay.js';
 
 /** A generated file after ownership, path safety and conflict resolution. */
@@ -84,12 +83,7 @@ export const compile = (
 
   const artifacts = [...byPath.values()].sort((a, b) => compareStrings(a.path, b.path));
 
-  return {
-    artifacts,
-    // Runs last, over reconciled ownership: which provider owns a path is only
-    // settled once every adapter has contributed.
-    diagnostics: [...diagnostics, ...crossProviderDiagnostics(adapters, artifacts)],
-  };
+  return { artifacts, diagnostics };
 };
 
 const runAdapter = (

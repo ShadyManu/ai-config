@@ -42,7 +42,7 @@ export interface ProviderOverlay {
    * Override files whose canonical artifact no longer exists.
    *
    * Carried as data rather than left as a diagnostic to be parsed back out of a
-   * message: `sync` removes them, and it needs the paths.
+   * message, so callers can report the paths without changing authored files.
    */
   readonly orphanedOverrides: readonly string[];
 }
@@ -136,9 +136,9 @@ export const discoverOverlay = async (
  *
  * They differ in what happens next. A missing target means the override has
  * outlived what it refined, and nothing can bring it back into use except an
- * artifact of that name returning; `sync` removes it, so it is informational
+ * artifact of that name returning; `sync` preserves it, so it is informational
  * rather than a warning — it is reported so that `validate` and `--dry-run`
- * announce the removal, not to ask anyone to act. The other two describe a file
+ * announce the preserved file, not to ask anyone to act. The other two describe a file
  * this provider can never apply whatever changes, and AI Config does not know
  * what the author meant by it, so they warn and the file stays.
  *
@@ -186,15 +186,15 @@ const discoverOverrides = async (
       if (target === undefined) {
         orphaned.push(sourcePath);
         // Informational: nothing is wrong with the file, and nothing is lost.
-        // An override cannot outlive what it refines, so the next `sync`
-        // removes it — reported here so `validate` and `--dry-run` say what is
-        // about to happen rather than letting it happen unannounced.
+        // Synchronization preserves authored overrides when their target is
+        // absent because this may be a deletion, rename, or branch switch.
+        // `validate` and `--dry-run` report the state without changing it.
         diagnostics.push({
           code: 'OVERRIDE_TARGET_MISSING',
           severity: 'info',
           provider,
           source: sourcePath,
-          message: `No canonical ${kind} named '${id}' exists, so this override refines nothing. It is removed by the next synchronization, as the files generated from that ${kind} are.`,
+          message: `No canonical ${kind} named '${id}' exists, so this override refines nothing. It is preserved until you remove it explicitly or restore the artifact.`,
         });
         continue;
       }
@@ -222,7 +222,7 @@ const discoverOverrides = async (
           severity: 'error',
           provider,
           source: sourcePath,
-          message: `Could not parse ${sourcePath}: ${parsed.reason}`,
+          message: `Could not parse ${sourcePath}: ${parsed.reason}.${parsed.explanation === undefined ? '' : ` ${parsed.explanation}`}`,
           line: parsed.position?.line,
           column: parsed.position?.column,
         });

@@ -59,7 +59,7 @@ export const init = async (
   }
 
   const files = [
-    ...starterFiles(options.providers),
+    ...starterFiles(options.providers, options.adapters),
     {
       path: GENERATION_RULES_PATH,
       content: renderGenerationRules(options.adapters, options.version),
@@ -114,14 +114,23 @@ interface StarterFile {
  * rewriting it. The four content directories are created empty instead, which
  * says where things go without putting words in anyone's mouth.
  */
-const starterFiles = (providers: readonly ProviderId[]): StarterFile[] => [
-  { path: CONFIG_PATH, content: renderConfig(providers) },
-];
+const starterFiles = (
+  providers: readonly ProviderId[],
+  adapters: readonly ProviderAdapter[],
+): StarterFile[] => [{ path: CONFIG_PATH, content: renderConfig(providers, adapters) }];
 
-const renderConfig = (providers: readonly ProviderId[]): string => {
+const renderConfig = (
+  providers: readonly ProviderId[],
+  adapters: readonly ProviderAdapter[],
+): string => {
+  const available = adapters
+    .map((adapter) => adapter.id)
+    .sort()
+    .join(', ');
   const lines = [
     '# AI Config canonical configuration.',
     '# Specification: https://github.com/ShadyManu/ai-config/blob/main/docs/specification.md',
+    ...(available.length === 0 ? [] : [`# Available providers: ${available}.`]),
     '',
     `schema: ${String(SUPPORTED_SCHEMA_VERSION)}`,
     '',

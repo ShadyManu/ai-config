@@ -17,3 +17,16 @@ out
 /examples/*/.github/
 /examples/*/.opencode/
 /examples/*/AGENTS.md
+
+# Ignore the AI Provider's folders
+.ai/.generated.json
+.claude/
+.codex/
+.agents/
+.opencode/
+AGENTS.md
+
+# The scratch folder the VS Code integration tests open. It has to exist when
+# the editor launches, and everything the tests put in it is disposable.
+/apps/vscode/test-workspace/*
+!/apps/vscode/test-workspace/.gitkeep

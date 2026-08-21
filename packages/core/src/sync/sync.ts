@@ -11,7 +11,6 @@ import type { DriftPolicy, PlanAction, SyncPlan } from '../plan/plan.js';
 import { pathsToProbe, plan, stateOf, toWritablePlan } from '../plan/plan.js';
 import { probe } from '../probe/probe.js';
 import type { LoadedProject } from './project.js';
-import { removeOrphanedOverrides } from '../scaffold/remove.js';
 import { activeAdapters, loadProject } from './project.js';
 import type { WriteSummary } from './writer.js';
 import { write } from './writer.js';
@@ -207,7 +206,7 @@ export interface SyncResult {
   readonly summary: WriteSummary;
   readonly applied: boolean;
   readonly diagnostics: readonly Diagnostic[];
-  /** Override files removed because what they refined no longer exists. */
+  /** Kept for JSON/API compatibility; automatic orphan cleanup is disabled. */
   readonly removedOverrides: readonly string[];
 }
 
@@ -260,7 +259,7 @@ export const sync = async (
         summary: summarize(analysis.plan),
         applied: false,
         diagnostics: analysis.diagnostics,
-        // Reported by the diagnostics above, and removed only when applying.
+        // Reported by the diagnostics above; authored overrides are preserved.
         removedOverrides: [],
       },
     };
@@ -276,16 +275,6 @@ export const sync = async (
     };
   }
 
-  // After the write, and only when actually applying: an override whose
-  // artifact is gone refines nothing, and leaving it would make the rule
-  // "everything the artifact produced goes with it" true of generated files
-  // and false of overrides. Removal is last so a failed write never takes a
-  // source file with it.
-  const orphaned = [...analysis.project.overlays.values()].flatMap(
-    (overlay) => overlay.orphanedOverrides,
-  );
-  const removedOverrides = await removeOrphanedOverrides(fileSystem, root, orphaned);
-
   return {
     ok: true,
     result: {
@@ -293,7 +282,9 @@ export const sync = async (
       summary: result.summary,
       applied: true,
       diagnostics: analysis.diagnostics,
-      removedOverrides,
+      // Orphaned overrides are reported but preserved until an explicit,
+      // reversible cleanup operation exists.
+      removedOverrides: [],
     },
   };
 };

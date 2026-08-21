@@ -185,6 +185,8 @@ export const renderGenerationRules = (
     '',
     'A field this build does not recognize is written through with a warning',
     'rather than refused, so a setting a provider adds later still works.',
+    'Where a provider documents that it accepts undeclared fields, the table',
+    'below says so and no warning is raised at all.',
     '',
   );
 
@@ -197,7 +199,17 @@ export const renderGenerationRules = (
     }
     lines.push(row(['Applies to', 'Fields']), row(['---', '---']));
     for (const schema of [...schemas].sort((a, b) => compareStrings(a.kind, b.kind))) {
-      lines.push(row([schema.kind, schema.fields.map((field) => `\`${field.name}\``).join(', ')]));
+      const declared = schema.fields.map((field) => `\`${field.name}\``).join(', ');
+      // Naming the pass-through beside the fields is what stops the list being
+      // read as the limit of what the provider accepts.
+      lines.push(
+        row([
+          schema.kind,
+          schema.passthrough === undefined
+            ? declared
+            : `${declared}, plus any other option: ${schema.passthrough.reason}`,
+        ]),
+      );
     }
     lines.push('');
   }

@@ -274,7 +274,7 @@ export const renderOverrideTemplate = (
   return [
     `schema: ${String(OVERRIDE_SCHEMA_VERSION)}`,
     '',
-    ...commentBlock(templateHeader(draft, fields), ''),
+    ...commentBlock(templateHeader(draft, schema, fields), ''),
     'options:',
     ...body.map((line) => (line.length === 0 ? '  #' : `  # ${line}`)),
     '',
@@ -283,15 +283,33 @@ export const renderOverrideTemplate = (
 
 const templateHeader = (
   draft: OverrideTemplateDraft,
+  schema: ProviderOverrideSchema,
   fields: readonly OverrideField[],
 ): readonly string[] => {
-  const documentation = [...new Set(fields.map((field) => field.documentation))].sort();
+  const documentation = [
+    ...new Set([
+      ...fields.map((field) => field.documentation),
+      ...(schema.passthrough === undefined ? [] : [schema.passthrough.documentation]),
+    ]),
+  ].sort();
+
   return [
     `${draft.provider} settings for the ${draft.kind} '${draft.id}'.`,
     '',
     `The canonical ${draft.kind} is still compiled to every enabled provider. What is set here changes only what ${draft.provider} receives.`,
     '',
     `Uncomment a setting and replace ${TEMPLATE_PLACEHOLDER} with a value. While a setting stays commented out it is not applied, and this file stays valid either way.`,
+    ...(fields.some((field) => field.name.includes('.'))
+      ? ['', 'For nested settings, uncomment the parent section and the setting below it together.']
+      : []),
+    // Said here rather than left to be discovered: the scaffold lists only the
+    // settings AI Config knows, and without this the list reads as the limit.
+    ...(schema.passthrough === undefined
+      ? []
+      : [
+          '',
+          `This list is not the limit. ${schema.passthrough.reason} Add such a setting by hand and AI Config writes it through unchanged.`,
+        ]),
     ...(documentation.length === 0 ? [] : ['']),
     ...documentation.map((url) => `Reference: ${url}`),
   ];
@@ -367,7 +385,11 @@ const describeField = (field: OverrideField): readonly string[] => {
 const placeholderFor = (type: OverrideFieldType): string => {
   switch (type.kind) {
     case 'string':
+      return TEMPLATE_PLACEHOLDER;
     case 'enum':
+      return type.values.length === 1 && type.values[0] !== undefined
+        ? type.values[0]
+        : TEMPLATE_PLACEHOLDER;
     case 'enum-or-map':
     case 'number':
     case 'boolean':
@@ -385,16 +407,18 @@ const placeholderFor = (type: OverrideFieldType): string => {
 
 const constraintOf = (
   type: OverrideFieldType,
-  suggestions: readonly string[] | undefined,
+  _suggestions: readonly string[] | undefined,
 ): string | undefined => {
   switch (type.kind) {
     case 'string':
-      return suggestions === undefined || suggestions.length === 0
-        ? undefined
-        : `Suggested values: ${suggestions.join(', ')}.`;
+      // Do not put model/provider examples in authored override files. A
+      // suggestion in a scaffold looks like a preference and becomes stale as
+      // providers publish new models. The reference documentation remains the
+      // neutral place for this information.
+      return undefined;
 
     case 'enum':
-      return `One of: ${type.values.join(', ')}.`;
+      return type.values.length <= 1 ? undefined : `One of: ${type.values.join(', ')}.`;
 
     case 'enum-or-map':
       return `One of: ${type.values.join(', ')}, or a mapping.`;

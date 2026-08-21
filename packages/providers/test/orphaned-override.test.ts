@@ -13,15 +13,15 @@ import { createDefaultAdapters } from '../src/index.js';
  * remove an artifact. Doing so leaves the override at
  * `.ai/providers/<provider>/<kind>/<name>.yaml` pointing at nothing.
  *
- * An override refines an artifact and means nothing without it, so the next
- * synchronization removes it, exactly as it removes the files that artifact
- * generated. That is the one thing a synchronization removes under `.ai/`; it
- * still never creates or modifies anything there.
+ * An override refines an artifact and means nothing without it while the
+ * artifact is absent, but synchronization preserves it: the state may be a
+ * rename or branch switch. Generated output is still removed from the working
+ * tree according to the ownership manifest.
  *
  * Two guarantees have to hold together, and these tests hold both: an override
- * whose artifact is gone is removed, and an override belonging to a *disabled*
- * provider is not — the second is kept deliberately so re-enabling restores the
- * settings exactly.
+ * whose artifact is gone is preserved, and an override belonging to a
+ * *disabled* provider is not inspected — the second is kept deliberately so
+ * re-enabling restores the settings exactly.
  */
 
 const adapters = createDefaultAdapters();
@@ -30,6 +30,13 @@ const CONFIG = 'schema: 1\nproviders:\n  enabled:\n    - claude\n    - codex\n';
 const AGENT = '.ai/agents/reviewer.md';
 const OVERRIDE = '.ai/providers/claude/agents/reviewer.yaml';
 const GENERATED = '.claude/agents/reviewer.md';
+
+const PROVIDER_CASES = [
+  { provider: 'claude', override: '.ai/providers/claude/agents/reviewer.yaml' },
+  { provider: 'codex', override: '.ai/providers/codex/agents/reviewer.yaml' },
+  { provider: 'copilot', override: '.ai/providers/copilot/agents/reviewer.yaml' },
+  { provider: 'opencode', override: '.ai/providers/opencode/agents/reviewer.yaml' },
+] as const;
 
 const project = (): MemoryFileSystem => {
   const fileSystem = new MemoryFileSystem();
@@ -52,6 +59,25 @@ const orphaned = async (): Promise<MemoryFileSystem> => {
 };
 
 describe('a canonical artifact deleted by hand', () => {
+  it.each(PROVIDER_CASES)(
+    'preserves an orphan for the enabled $provider provider',
+    async ({ provider, override }) => {
+      const fileSystem = new MemoryFileSystem();
+      fileSystem.set(CONFIG_PATH, `schema: 1\nproviders:\n  enabled: [${provider}]\n`);
+      fileSystem.set(AGENT, '---\ndescription: Reviews changes\n---\n\nYou review code.\n');
+      fileSystem.set(override, 'schema: 1\noptions:\n  model: custom\n');
+
+      expect((await sync(fileSystem, fileSystem.root, adapters, {})).ok).toBe(true);
+      await fileSystem.deleteFile(`${fileSystem.root}/${AGENT}`);
+
+      const outcome = await sync(fileSystem, fileSystem.root, adapters, {});
+
+      expect(outcome.ok).toBe(true);
+      expect(fileSystem.has(override)).toBe(true);
+      expect(fileSystem.paths().filter((entry) => !entry.startsWith('.ai/'))).toEqual([]);
+    },
+  );
+
   it('reports the orphaned override without blocking anything', async () => {
     const fileSystem = await orphaned();
 
@@ -68,7 +94,7 @@ describe('a canonical artifact deleted by hand', () => {
     // Informational: nothing is wrong and nothing is lost. The message says
     // what happens next rather than asking anyone to act.
     expect(reported[0]?.severity).toBe('info');
-    expect(reported[0]?.message).toContain('removed by the next synchronization');
+    expect(reported[0]?.message).toContain('preserved until you remove it explicitly');
     expect(reported[0]?.source).toBe(OVERRIDE);
     // Analysis reads and reports; it never removes.
     expect(fileSystem.has(OVERRIDE)).toBe(true);
@@ -78,9 +104,9 @@ describe('a canonical artifact deleted by hand', () => {
     ).toEqual([]);
   });
 
-  it('removes the override along with what the artifact had generated', async () => {
-    // An override cannot outlive what it refines. The generated files were
-    // always treated that way; the override used to be the exception.
+  it('preserves the authored override while removing generated output', async () => {
+    // The generated files are disposable output. The override is authored
+    // content and may belong to a rename or a branch switch, so sync leaves it.
     const fileSystem = await orphaned();
 
     const outcome = await sync(fileSystem, fileSystem.root, adapters, {});
@@ -88,10 +114,9 @@ describe('a canonical artifact deleted by hand', () => {
     expect(outcome.ok).toBe(true);
     expect(fileSystem.has(GENERATED)).toBe(false);
     expect(fileSystem.has('AGENTS.md')).toBe(false);
-    expect(fileSystem.has(OVERRIDE)).toBe(false);
-    expect(outcome.ok && outcome.result.removedOverrides).toEqual([OVERRIDE]);
-    // The directories that removal emptied go too, `.ai/providers/` included.
-    expect(fileSystem.paths().filter((entry) => entry.startsWith('.ai/providers'))).toEqual([]);
+    expect(fileSystem.has(OVERRIDE)).toBe(true);
+    expect(outcome.ok && outcome.result.removedOverrides).toEqual([]);
+    expect(fileSystem.paths()).toContain(OVERRIDE);
   });
 
   it('names nothing removed when a dry run reports the same state', async () => {
@@ -109,7 +134,7 @@ describe('a canonical artifact deleted by hand', () => {
   it('never touches an override belonging to a disabled provider', async () => {
     // Two guarantees meet here, and the wrong one winning would be silent data
     // loss. A disabled provider's overrides are kept so re-enabling restores
-    // the settings exactly; an orphaned override is removed. Overlays are read
+    // the settings exactly; an orphaned override is preserved. Overlays are read
     // only for enabled providers, so a disabled one is never even considered —
     // its artifact is irrelevant to the question.
     const fileSystem = project();
@@ -153,6 +178,18 @@ describe('a canonical artifact deleted by hand', () => {
 
     expect(outcome.ok).toBe(true);
     expect(outcome.ok && outcome.analysis.diagnostics).toEqual([]);
+  });
+
+  it('reactivates a preserved override when the canonical artifact returns', async () => {
+    const fileSystem = await orphaned();
+    await sync(fileSystem, fileSystem.root, adapters, {});
+
+    fileSystem.set(AGENT, '---\ndescription: Reviews changes\n---\n\nYou review code again.\n');
+    const outcome = await sync(fileSystem, fileSystem.root, adapters, {});
+
+    expect(outcome.ok).toBe(true);
+    expect(fileSystem.has(OVERRIDE)).toBe(true);
+    expect(fileSystem.has(GENERATED)).toBe(true);
   });
 
   it('keeps every other artifact compiling while the orphan is reported', async () => {
