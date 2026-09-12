@@ -6,6 +6,7 @@ import { countBySeverity, stateOf } from '@aiconfig/core';
 import { Controller } from './controller.js';
 import { GENERATED_SCHEME, generatedUri } from './generated-document.js';
 import { Logger } from './logger.js';
+import { ProjectMigrations } from './migrations.js';
 import {
   commandTargetOverride,
   commandTargetPath,
@@ -19,7 +20,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
   // there rather than duplicated in the source.
   const declared = (context.extension.packageJSON as { version?: unknown }).version;
   const version = typeof declared === 'string' ? declared : 'unknown';
-  const controller = new Controller(logger, version);
+  const controller = new Controller(logger, version, new ProjectMigrations(context.workspaceState));
 
   context.subscriptions.push(logger, controller);
 

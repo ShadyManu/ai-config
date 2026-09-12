@@ -1,10 +1,7 @@
 ---
 name: reviewer
 description: Reviews changes for correctness and clarity without modifying files
-tools:
-  - Read
-  - Grep
-  - Glob
+tools: Read, Grep, Glob
 model: sonnet
 permissionMode: plan
 ---

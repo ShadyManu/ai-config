@@ -5,6 +5,26 @@ All notable changes to `@aiconfig/cli` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.4.1] - 2026-09-12
+
+### Added
+
+- `aiconfig init` now creates `.ai/instructions/ai-config.md`, teaching every
+  generated assistant to change canonical sources under `.ai/` and treat only
+  AI Config-owned provider files as read-only output.
+
+### Fixed
+
+- OpenCode agent overrides accept both the V1 `permission` mapping and the V2
+  ordered `permissions` rule list. V2 rules retain their declared order and
+  require `action`, `resource`, and `effect`, so valid V2 YAML no longer
+  produces an override validation error.
+- Claude Code agent `tools` and `disallowedTools` are generated as documented
+  comma-separated inline values instead of YAML block sequences.
+- Newly initialized `.ai/config.yaml` files disable automatic SchemaStore
+  detection, preventing AgentCtl's incompatible schema for the same path from
+  producing false validation errors. YAML syntax validation remains enabled.
+
 ## [1.4.0] - 2026-08-22
 
 ### Added

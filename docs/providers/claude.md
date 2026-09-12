@@ -29,7 +29,11 @@ Claude Code and therefore are not exposed.
 Canonical values remain preferred in examples, but accepting a current provider
 alias avoids rejecting configuration Claude Code accepts.
 
-Sources, read 2026-08-20:
+Agent `tools` and `disallowedTools` overrides are authored as YAML string lists
+in `.ai/`, then emitted in Claude Code's documented comma-separated scalar
+syntax, for example `tools: Read, Grep, Glob`.
+
+Sources, read 2026-09-12:
 
 - <https://code.claude.com/docs/en/sub-agents>
 - <https://code.claude.com/docs/en/skills#frontmatter-reference>

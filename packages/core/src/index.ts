@@ -148,7 +148,12 @@ export type { RestoreOutcome, RestoreResult } from './sync/restore.js';
 export { restore } from './sync/restore.js';
 
 export type { InitOptions, InitOutcome } from './sync/init.js';
-export { init } from './sync/init.js';
+export {
+  MANAGEMENT_INSTRUCTION_CONTENT,
+  MANAGEMENT_INSTRUCTION_PATH,
+  ensureManagementInstruction,
+  init,
+} from './sync/init.js';
 export { findExistingProviderTargets } from './sync/untracked-targets.js';
 
 export type { LoadedProject } from './sync/project.js';

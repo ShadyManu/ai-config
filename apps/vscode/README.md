@@ -29,7 +29,9 @@ no telemetry.
 
 1. Install AI Config.
 2. Open the repository you want to configure.
-3. Run **AI Config: Initialize Project** from the Command Palette.
+3. Run **AI Config: Initialize Project** from the Command Palette. Initialization
+   also adds `.ai/instructions/ai-config.md`, so generated assistants know to
+   edit canonical `.ai/` sources rather than provider output.
 4. Select the assistants this repository should stay in sync with.
 5. Add instructions, agents, skills or commands from the **Add** menu in the AI
    Config sidebar.

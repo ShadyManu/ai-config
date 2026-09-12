@@ -115,8 +115,19 @@ export const OPENCODE_AGENT_OVERRIDE: ProviderOverrideSchema = {
       name: 'permission',
       type: { kind: 'map', shorthand: { keys: PERMISSION_KEYS, values: ['allow', 'ask', 'deny'] } },
       description:
-        'Per-tool permissions. Each key accepts allow, ask or deny; read, edit, glob, grep, list, bash, task, external_directory, lsp and skill also accept a glob-pattern map. Which subagents this agent may invoke is permission.task, not a top-level task field.',
+        'OpenCode V1 per-tool permissions. Each key accepts allow, ask or deny; read, edit, glob, grep, list, bash, task, external_directory, lsp and skill also accept a glob-pattern map. Which subagents this agent may invoke is permission.task, not a top-level task field.',
       documentation: AGENTS_DOC,
+    },
+    {
+      name: 'permissions',
+      type: {
+        kind: 'map-list',
+        fields: { action: 'string', resource: 'string', effect: 'string' },
+        required: ['action', 'resource', 'effect'],
+      },
+      description:
+        'OpenCode V2 ordered permission rules. Each rule requires string action, resource and effect fields; effect is allow, ask or deny.',
+      documentation: 'https://opencode.ai/v2/docs/permissions/',
     },
     // Every model option OpenCode documents as settable on an agent. They are
     // pass-through like any other — OpenCode forwards them to the model

@@ -5,6 +5,7 @@ import * as vscode from 'vscode';
 
 import { Controller } from '../../controller.js';
 import { Logger } from '../../logger.js';
+import { ProjectMigrations } from '../../migrations.js';
 
 /**
  * Following a rename, driven through the real `Controller` in a real workspace.
@@ -60,19 +61,16 @@ const exists = (relativePath: string): boolean => fs.existsSync(at(relativePath)
 /**
  * Empties the scratch folder, keeping the placeholder git tracks.
  *
- * The retries are not superstition. On Windows a directory cannot be unlinked
- * while any process still holds a handle to it, and the editor's own file
- * watchers release theirs a moment after a controller is disposed — so the
- * first attempt on a directory the last test generated can fail with `EPERM`.
+ * Use the editor's filesystem API because recent VS Code versions discover
+ * generated agent files themselves. On Windows, deleting those files directly
+ * can race an editor-owned handle and fail with `EPERM`.
  */
-const clean = (): void => {
+const clean = async (): Promise<void> => {
   for (const entry of fs.readdirSync(root)) {
     if (entry !== '.gitkeep') {
-      fs.rmSync(path.join(root, entry), {
+      await vscode.workspace.fs.delete(vscode.Uri.file(path.join(root, entry)), {
         recursive: true,
-        force: true,
-        maxRetries: 20,
-        retryDelay: 100,
+        useTrash: false,
       });
     }
   }
@@ -187,9 +185,9 @@ let notifications: Notifications | undefined;
  * project currently has, which is the evidence the next refresh uses to work
  * out which half of a rename was edited.
  */
-const start = async (): Promise<Controller> => {
+const start = async (migrations?: ProjectMigrations): Promise<Controller> => {
   logger = new Logger();
-  const started = new Controller(logger, 'test');
+  const started = new Controller(logger, 'test', migrations);
   controller = started;
   await started.refresh();
   return started;
@@ -207,8 +205,8 @@ suiteSetup(() => {
   );
 });
 
-setup(() => {
-  clean();
+setup(async () => {
+  await clean();
   notifications = captureNotifications();
   write('.ai/config.yaml', CONFIG);
   write('.ai/skills/scouts/SKILL.md', SKILL('scouts'));
@@ -232,16 +230,32 @@ teardown(async () => {
     () => openInWorkspace().length === 0,
     () => `still open: ${openInWorkspace().join(', ')}`,
   );
-  clean();
+  await clean();
 });
 
-suiteTeardown(() => {
+suiteTeardown(async () => {
   // The folder must not hold `.ai/config.yaml` when the editor next launches,
   // or the extension activates here and puts a second controller on it.
-  clean();
+  await clean();
 });
 
 suite('following a rename in a real workspace', () => {
+  test('adds the standard instruction to a project created by an older release', async () => {
+    const values = new Map<string, unknown>();
+    const migrations = new ProjectMigrations({
+      get: <T>(key: string, defaultValue: T): T =>
+        (values.get(key) as T | undefined) ?? defaultValue,
+      update: (key: string, value: unknown): Promise<void> => {
+        values.set(key, value);
+        return Promise.resolve();
+      },
+    });
+
+    await start(migrations);
+
+    assert.match(read('.ai/instructions/ai-config.md'), /uses AI Config as the source of truth/);
+  });
+
   test('renames the skill directory when the name field changes', async () => {
     const started = await start();
     assert.equal(exists('.ai/skills/scouts/SKILL.md'), true);

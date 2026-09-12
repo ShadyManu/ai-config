@@ -13,7 +13,11 @@ export interface FrontmatterMap {
 }
 
 /** An ordered field. The caller controls key order, so output is stable. */
-export type FrontmatterField = readonly [key: string, value: FrontmatterValue];
+export type FrontmatterField = readonly [
+  key: string,
+  value: FrontmatterValue,
+  style?: 'comma-separated-string-list',
+];
 
 // Plain (unquoted) YAML scalars are only safe when they cannot be mistaken for
 // structure or for another type. Anything outside this shape is quoted.
@@ -24,6 +28,11 @@ export type FrontmatterField = readonly [key: string, value: FrontmatterValue];
 // patterns are always quoted, which also matches how every provider's
 // documentation writes them.
 const SAFE_PLAIN_SCALAR = /^[A-Za-z0-9][A-Za-z0-9 _./()+-]*$/;
+
+// A comma is safe in a block scalar but not in flow context. The renderer uses
+// this only for fields whose provider syntax is a comma-separated scalar, never
+// for map keys or ordinary values.
+const SAFE_COMMA_SEPARATED_SCALAR = /^[A-Za-z0-9][A-Za-z0-9 _.,/()+-]*$/;
 
 // Anything a YAML 1.2 core-schema parser would read back as a non-string:
 // booleans, null, decimals, exponents, hexadecimal, octal, binary, and the
@@ -43,6 +52,19 @@ const renderScalar = (value: string): string => {
   }
   // A JSON string literal is almost a valid YAML double-quoted scalar, and its
   // escaping rules are fully specified, which keeps output deterministic.
+  return escapeForYaml(JSON.stringify(value));
+};
+
+const renderCommaSeparatedScalar = (value: string): string => {
+  if (
+    value.length > 0 &&
+    !value.endsWith(' ') &&
+    !value.includes(' #') &&
+    SAFE_COMMA_SEPARATED_SCALAR.test(value) &&
+    !LOOKS_LIKE_OTHER_TYPE.test(value)
+  ) {
+    return value;
+  }
   return escapeForYaml(JSON.stringify(value));
 };
 
@@ -87,7 +109,20 @@ const renderKey = (key: string): string => renderScalar(key);
  * `hooks` object is what the providers' own documentation shows, and block
  * style keeps a generated file diffable line by line.
  */
-const renderEntry = (key: string, value: FrontmatterValue, indent: string): readonly string[] => {
+const renderEntry = (
+  key: string,
+  value: FrontmatterValue,
+  indent: string,
+  style?: FrontmatterField[2],
+): readonly string[] => {
+  if (
+    style === 'comma-separated-string-list' &&
+    isList(value) &&
+    value.length > 0 &&
+    value.every((item) => typeof item === 'string')
+  ) {
+    return [`${indent}${renderKey(key)}: ${renderCommaSeparatedScalar(value.join(', '))}`];
+  }
   if (typeof value !== 'object') {
     return [`${indent}${renderKey(key)}: ${renderInlineScalar(value)}`];
   }
@@ -149,7 +184,8 @@ const renderSequenceItem = (value: FrontmatterValue, indent: string): readonly s
 export const renderYamlEntries = (
   fields: readonly FrontmatterField[],
   indent = '',
-): readonly string[] => fields.flatMap(([key, value]) => renderEntry(key, value, indent));
+): readonly string[] =>
+  fields.flatMap(([key, value, style]) => renderEntry(key, value, indent, style));
 
 /**
  * Renders YAML frontmatter from ordered fields.

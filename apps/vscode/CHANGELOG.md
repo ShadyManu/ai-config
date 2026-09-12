@@ -10,6 +10,28 @@ its own copy of the same compiler. Two different versions in one repository
 would emit different files from the same `.ai/`, and each would read the other's
 output as drift. The shared number is what says which compiler you are running.
 
+## [1.4.1] - 2026-09-12
+
+### Added
+
+- Newly initialized projects receive `.ai/instructions/ai-config.md`, which
+  teaches generated assistants to work through canonical `.ai/` sources.
+- Existing initialized projects receive the same instruction once after the
+  extension update. Existing content is never replaced, and deleting the
+  supplied instruction later is respected.
+
+### Fixed
+
+- OpenCode agent override validation accepts both V1 `permission` mappings and
+  V2 ordered `permissions` rule lists, including the V2 `shell` and `subagent`
+  action names.
+- Generated Claude Code agents write `tools` and `disallowedTools` as
+  comma-separated values on one line, matching Claude Code's frontmatter
+  format.
+- Newly initialized `.ai/config.yaml` files opt out of automatic SchemaStore
+  detection, so AgentCtl's incompatible schema for the same path no longer
+  reports false missing-property errors. YAML syntax validation remains active.
+
 ## [1.4.0] - 2026-08-22
 
 ### Added

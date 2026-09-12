@@ -2,7 +2,7 @@
   "name": "ai-config",
   "displayName": "AI Config",
   "description": "Define your AI coding configuration once and keep Claude Code, Codex, GitHub Copilot, and OpenCode automatically synchronized.",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "private": true,
   "license": "MIT",
   "publisher": "aiconfig",

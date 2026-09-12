@@ -13,7 +13,9 @@ You do not need to know any provider's configuration format to use it.
 ### VS Code
 
 1. Install the AI Config extension.
-2. Run **AI Config: Initialize Project** and choose your assistants.
+2. Run **AI Config: Initialize Project** and choose your assistants. AI Config
+   also adds a canonical instruction teaching them to edit `.ai/` rather than
+   generated provider output.
 3. Use the **Add** menu in the AI Config sidebar: **Add Agent**, **Add Command**, **Add Instruction**, **Add Skill**. Each one asks for a name.
 4. Optionally choose which provider-specific settings to include, or add them later with **Add Provider Override…** on any artifact.
 5. AI Config scaffolds valid source files and opens them; write the description, prompt, instructions and provider values in the editor.
