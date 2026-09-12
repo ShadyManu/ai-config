@@ -5,6 +5,7 @@ import * as vscode from 'vscode';
 
 import { Controller } from '../../controller.js';
 import { Logger } from '../../logger.js';
+import { ProjectMigrations } from '../../migrations.js';
 
 /**
  * Following a rename, driven through the real `Controller` in a real workspace.
@@ -184,9 +185,9 @@ let notifications: Notifications | undefined;
  * project currently has, which is the evidence the next refresh uses to work
  * out which half of a rename was edited.
  */
-const start = async (): Promise<Controller> => {
+const start = async (migrations?: ProjectMigrations): Promise<Controller> => {
   logger = new Logger();
-  const started = new Controller(logger, 'test');
+  const started = new Controller(logger, 'test', migrations);
   controller = started;
   await started.refresh();
   return started;
@@ -239,6 +240,22 @@ suiteTeardown(async () => {
 });
 
 suite('following a rename in a real workspace', () => {
+  test('adds the standard instruction to a project created by an older release', async () => {
+    const values = new Map<string, unknown>();
+    const migrations = new ProjectMigrations({
+      get: <T>(key: string, defaultValue: T): T =>
+        (values.get(key) as T | undefined) ?? defaultValue,
+      update: (key: string, value: unknown): Promise<void> => {
+        values.set(key, value);
+        return Promise.resolve();
+      },
+    });
+
+    await start(migrations);
+
+    assert.match(read('.ai/instructions/ai-config.md'), /uses AI Config as the source of truth/);
+  });
+
   test('renames the skill directory when the name field changes', async () => {
     const started = await start();
     assert.equal(exists('.ai/skills/scouts/SKILL.md'), true);

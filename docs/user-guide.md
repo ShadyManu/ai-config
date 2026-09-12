@@ -22,6 +22,8 @@ and refuses to overwrite anything it does not own.
 
 1. Run **AI Config: Initialize Project** from the Command Palette.
 2. Choose the assistants this repository should stay in sync with.
+   Initialization also creates `.ai/instructions/ai-config.md`, so those
+   assistants know to edit canonical `.ai/` sources instead of generated output.
 3. Use the **Add** menu at the top of the AI Config sidebar to create an
    instruction, agent, skill or command. Each flow asks for a name, which
    decides the file it creates.
@@ -86,10 +88,12 @@ only settings that are specific to one assistant. They never repeat anything the
 portable artifact already says, and they never change which providers an
 artifact reaches.
 
-Everything under `.ai/` is yours. AI Config writes there only when you ask it
-to: `init`, a guided Add action, an explicit override action, or a CLI
-scaffolding command. **`aiconfig sync` never creates or modifies a file under
-`.ai/`.**
+Everything under `.ai/` is yours. AI Config writes there only during `init`, a
+guided Add action, an explicit override action, a CLI scaffolding command, or
+the extension's one-time addition of `.ai/instructions/ai-config.md` to a
+project created by an older release. Existing content at that path is never
+replaced, and removing the supplied instruction after migration is respected.
+**`aiconfig sync` never creates or modifies a file under `.ai/`.**
 
 It does not remove authored files there. If a provider override's canonical
 artifact no longer exists, AI Config reports the situation and preserves the

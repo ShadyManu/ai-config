@@ -34,6 +34,10 @@ aiconfig override create claude agent reviewer --set model=sonnet
 aiconfig sync
 ```
 
+Initialization adds `.ai/instructions/ai-config.md`, a portable instruction
+that directs assistants to canonical `.ai/` sources and identifies generated
+provider files as read-only output.
+
 ## What lives where
 
 ```

@@ -15,6 +15,7 @@ import type {
 import {
   AI_DIRECTORY,
   CONFIG_PATH,
+  MANAGEMENT_INSTRUCTION_PATH,
   NodeFileSystem,
   alignArtifactName,
   analyze,
@@ -41,6 +42,7 @@ import { createDefaultAdapters } from '@aiconfig/providers';
 
 import { DiagnosticPublisher } from './diagnostics.js';
 import type { Logger } from './logger.js';
+import type { ProjectMigrations } from './migrations.js';
 import type { DetectedRename } from './rename-direction.js';
 import {
   decideRenameDirection,
@@ -193,6 +195,7 @@ export class Controller implements vscode.Disposable {
   public constructor(
     private readonly logger: Logger,
     private readonly version: string,
+    private readonly migrations?: ProjectMigrations,
   ) {
     this.tree.setAdapters(this.adapters);
   }
@@ -252,6 +255,18 @@ export class Controller implements vscode.Disposable {
     const before = new Set(this.knownNames);
     const previous = this.analysis?.project.configuration;
     let analysis = await this.loadAndPublish();
+
+    if (analysis !== undefined && this.root !== undefined && this.migrations !== undefined) {
+      const migration = await this.migrations.apply(this.root);
+      if (migration.diagnostics.length > 0) {
+        this.logger.error(
+          `Could not add the standard AI Config management instruction: ${migration.diagnostics[0]?.message ?? 'unknown error'}`,
+        );
+      } else if (migration.changed) {
+        this.logger.info(`Added ${MANAGEMENT_INSTRUCTION_PATH}.`);
+        analysis = await this.loadAndPublish();
+      }
+    }
 
     if (await this.resolveNameMismatches(analysis, before)) {
       analysis = await this.loadAndPublish();

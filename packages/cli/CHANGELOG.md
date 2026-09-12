@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [1.4.1] - 2026-09-12
 
+### Added
+
+- `aiconfig init` now creates `.ai/instructions/ai-config.md`, teaching every
+  generated assistant to change canonical sources under `.ai/` and treat only
+  AI Config-owned provider files as read-only output.
+
 ### Fixed
 
 - OpenCode agent overrides accept both the V1 `permission` mapping and the V2

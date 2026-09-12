@@ -12,6 +12,14 @@ output as drift. The shared number is what says which compiler you are running.
 
 ## [1.4.1] - 2026-09-12
 
+### Added
+
+- Newly initialized projects receive `.ai/instructions/ai-config.md`, which
+  teaches generated assistants to work through canonical `.ai/` sources.
+- Existing initialized projects receive the same instruction once after the
+  extension update. Existing content is never replaced, and deleting the
+  supplied instruction later is respected.
+
 ### Fixed
 
 - OpenCode agent override validation accepts both V1 `permission` mappings and

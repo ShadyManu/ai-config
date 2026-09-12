@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import { analyze } from '../src/sync/sync.js';
-import { init } from '../src/sync/init.js';
+import {
+  MANAGEMENT_INSTRUCTION_CONTENT,
+  MANAGEMENT_INSTRUCTION_PATH,
+  ensureManagementInstruction,
+  init,
+} from '../src/sync/init.js';
 import { MemoryFileSystem } from '../src/testing/memory-file-system.js';
 
 const options = { providers: ['claude' as const], adapters: [], version: '0.0.0-test' };
@@ -14,6 +19,7 @@ describe('init', () => {
 
     expect(outcome.ok).toBe(true);
     expect(fileSystem.get('.ai/config.yaml')).toContain('enabled:');
+    expect(fileSystem.get(MANAGEMENT_INSTRUCTION_PATH)).toBe(MANAGEMENT_INSTRUCTION_CONTENT);
   });
 
   it('creates a valid, loadable configuration when no provider is selected', async () => {
@@ -43,18 +49,35 @@ describe('init', () => {
     }
   });
 
-  it('writes no canonical content of its own', async () => {
-    // The four content directories are created empty. Anything inside them
-    // would be words AI Config put in the author's mouth, in a directory that
-    // is entirely theirs.
+  it('writes only the standard management instruction as canonical content', async () => {
     const fileSystem = new MemoryFileSystem();
 
     await init(fileSystem, fileSystem.root, options);
 
-    expect(fileSystem.paths()).toEqual(['.ai/config.yaml', '.ai/generation-rules.md']);
+    expect(fileSystem.paths()).toEqual([
+      '.ai/config.yaml',
+      '.ai/generation-rules.md',
+      MANAGEMENT_INSTRUCTION_PATH,
+    ]);
     for (const directory of ['instructions', 'agents', 'skills', 'commands']) {
       expect(await fileSystem.exists(`${fileSystem.root}/.ai/${directory}`), directory).toBe(true);
     }
+  });
+
+  it('adds the management instruction to an existing project without replacing one', async () => {
+    const fileSystem = new MemoryFileSystem();
+    fileSystem.set('.ai/config.yaml', 'schema: 1\nproviders:\n  enabled: []\n');
+
+    const created = await ensureManagementInstruction(fileSystem, fileSystem.root);
+
+    expect(created).toEqual({ ok: true, created: [MANAGEMENT_INSTRUCTION_PATH] });
+    expect(fileSystem.get(MANAGEMENT_INSTRUCTION_PATH)).toBe(MANAGEMENT_INSTRUCTION_CONTENT);
+
+    fileSystem.set(MANAGEMENT_INSTRUCTION_PATH, 'My project-specific rules.\n');
+    const preserved = await ensureManagementInstruction(fileSystem, fileSystem.root);
+
+    expect(preserved).toEqual({ ok: true, created: [] });
+    expect(fileSystem.get(MANAGEMENT_INSTRUCTION_PATH)).toBe('My project-specific rules.\n');
   });
 
   it('refuses an existing .ai/ rather than merging into it', async () => {

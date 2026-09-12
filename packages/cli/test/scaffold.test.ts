@@ -69,6 +69,16 @@ describe('aiconfig rules', () => {
 });
 
 describe('aiconfig init --providers', () => {
+  it('creates the instruction that directs assistants back to canonical sources', async () => {
+    const result = await initialize('claude');
+
+    expect(result.code).toBe(0);
+    expect(read('.ai/instructions/ai-config.md')).toContain(
+      'This repository uses AI Config as the source of truth',
+    );
+    expect(read('.ai/instructions/ai-config.md')).toContain('run `aiconfig sync`');
+  });
+
   it('enables only the requested providers', async () => {
     const result = await initialize('claude,opencode');
 
