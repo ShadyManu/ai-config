@@ -128,6 +128,7 @@ const renderConfig = (
     .sort()
     .join(', ');
   const lines = [
+    '# yaml-language-server: $schema=none',
     '# AI Config canonical configuration.',
     '# Specification: https://github.com/ShadyManu/ai-config/blob/main/docs/specification.md',
     ...(available.length === 0 ? [] : [`# Available providers: ${available}.`]),

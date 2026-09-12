@@ -33,11 +33,11 @@ The command override is not open: OpenCode documents `agent`, `model`,
 `subtask`, `description` and `template`, and nothing about accepting more, so an
 undeclared field there is still a warning.
 
-`permission` accepts the documented shorthand — every key takes `allow`, `ask`
-or `deny` — and the glob-pattern map form that `read`, `edit`, `glob`, `grep`,
-`list`, `bash`, `task`, `external_directory`, `lsp` and `skill` additionally
-accept. Guided flows offer the shorthand; the map form is written by hand and
-validated the same way.
+Both permission syntaxes are accepted. OpenCode V1 uses the `permission`
+mapping, where every key takes `allow`, `ask` or `deny` and selected actions
+also accept a nested pattern map. OpenCode V2 uses an ordered `permissions`
+list; every rule contains string `action`, `resource`, and `effect` fields. V2
+renames the `bash` and `task` actions to `shell` and `subagent`.
 
 No instruction override exists: `AGENTS.md` is plain Markdown, and the
 `instructions` key in `opencode.json` is global project configuration rather
@@ -74,9 +74,11 @@ Both belong to OpenCode. AI Config cannot fix either — Claude Code reads only
 need cannot be withheld — and reporting them on every synchronization would be a
 warning that never goes away.
 
-Sources, read 2026-08-21:
+Sources, read 2026-09-12:
 
 - <https://opencode.ai/docs/agents/>
+- <https://opencode.ai/v2/docs/agents/>
+- <https://opencode.ai/v2/docs/permissions/>
 - <https://opencode.ai/docs/commands/>
 - <https://opencode.ai/docs/skills/>
 - <https://opencode.ai/docs/rules/>

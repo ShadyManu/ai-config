@@ -10,6 +10,12 @@ import { CLAUDE_AGENT_OVERRIDE } from './overrides.js';
 
 export const AGENTS_DIRECTORY = '.claude/agents';
 
+const TOOL_LIST_FIELDS = new Set(['tools', 'disallowedTools']);
+
+/** Claude Code reads these two lists from comma-separated frontmatter scalars. */
+const withClaudeFieldStyle = (field: FrontmatterField): FrontmatterField =>
+  TOOL_LIST_FIELDS.has(field[0]) ? [field[0], field[1], 'comma-separated-string-list'] : field;
+
 /**
  * Compiles agents into `.claude/agents/`.
  *
@@ -29,7 +35,7 @@ export const compileAgents = (
       ['description', agent.description],
       ...(override === undefined
         ? []
-        : orderedOptionFields(CLAUDE_AGENT_OVERRIDE, override.options)),
+        : orderedOptionFields(CLAUDE_AGENT_OVERRIDE, override.options).map(withClaudeFieldStyle)),
     ];
 
     return {

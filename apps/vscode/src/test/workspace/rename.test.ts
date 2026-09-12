@@ -60,19 +60,16 @@ const exists = (relativePath: string): boolean => fs.existsSync(at(relativePath)
 /**
  * Empties the scratch folder, keeping the placeholder git tracks.
  *
- * The retries are not superstition. On Windows a directory cannot be unlinked
- * while any process still holds a handle to it, and the editor's own file
- * watchers release theirs a moment after a controller is disposed — so the
- * first attempt on a directory the last test generated can fail with `EPERM`.
+ * Use the editor's filesystem API because recent VS Code versions discover
+ * generated agent files themselves. On Windows, deleting those files directly
+ * can race an editor-owned handle and fail with `EPERM`.
  */
-const clean = (): void => {
+const clean = async (): Promise<void> => {
   for (const entry of fs.readdirSync(root)) {
     if (entry !== '.gitkeep') {
-      fs.rmSync(path.join(root, entry), {
+      await vscode.workspace.fs.delete(vscode.Uri.file(path.join(root, entry)), {
         recursive: true,
-        force: true,
-        maxRetries: 20,
-        retryDelay: 100,
+        useTrash: false,
       });
     }
   }
@@ -207,8 +204,8 @@ suiteSetup(() => {
   );
 });
 
-setup(() => {
-  clean();
+setup(async () => {
+  await clean();
   notifications = captureNotifications();
   write('.ai/config.yaml', CONFIG);
   write('.ai/skills/scouts/SKILL.md', SKILL('scouts'));
@@ -232,13 +229,13 @@ teardown(async () => {
     () => openInWorkspace().length === 0,
     () => `still open: ${openInWorkspace().join(', ')}`,
   );
-  clean();
+  await clean();
 });
 
-suiteTeardown(() => {
+suiteTeardown(async () => {
   // The folder must not hold `.ai/config.yaml` when the editor next launches,
   // or the extension activates here and puts a second controller on it.
-  clean();
+  await clean();
 });
 
 suite('following a rename in a real workspace', () => {

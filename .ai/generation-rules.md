@@ -83,5 +83,5 @@ rather than refused, so a setting a provider adds later still works.
 
 | Applies to | Fields |
 | --- | --- |
-| agent | `mode`, `model`, `temperature`, `top_p`, `steps`, `disable`, `hidden`, `color`, `permission` |
+| agent | `mode`, `model`, `temperature`, `top_p`, `steps`, `disable`, `hidden`, `color`, `permission`, `permissions` |
 | command | `agent`, `model`, `subtask` |

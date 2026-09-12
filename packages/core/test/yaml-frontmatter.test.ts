@@ -172,6 +172,12 @@ describe('renderMarkdownDocument', () => {
 });
 
 describe('nested YAML values', () => {
+  it('renders a string list as a comma-separated scalar only when requested', () => {
+    expect(
+      renderFrontmatter([['tools', ['Read', 'Grep', 'Glob'], 'comma-separated-string-list']]),
+    ).toBe(['---', 'tools: Read, Grep, Glob', '---', ''].join('\n'));
+  });
+
   it('renders a nested mapping as an indented block', () => {
     expect(renderFrontmatter([['permission', { edit: 'deny', bash: 'ask' }]])).toBe(
       ['---', 'permission:', '  edit: deny', '  bash: ask', '---', ''].join('\n'),

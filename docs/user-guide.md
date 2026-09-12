@@ -280,7 +280,7 @@ the file, the problem, and a concrete fix. Do not modify any file.
 | Claude Code | Yes | `.ai/providers/claude/agents/<id>.yaml` | `tools`, `disallowedTools`, `model`, `permissionMode`, `maxTurns`, `skills`, `memory`, `effort`, `background`, `isolation`, `color`, `initialPrompt`, `mcpServers`, `hooks` |
 | Codex | Yes | `.ai/providers/codex/agents/<id>.yaml` | `model`, `model_reasoning_effort`, `model_reasoning_summary`, `model_verbosity`, `personality`, `sandbox_mode`, `approval_policy`, `web_search`, `service_tier`, `tools.view_image`, `mcp_servers` |
 | GitHub Copilot | Yes | `.ai/providers/copilot/agents/<id>.yaml` | `target`, `tools`, `model`, `disable-model-invocation`, `user-invocable`, `mcp-servers`, `metadata`, `argument-hint`, `handoffs`, `agents`, `hooks` |
-| OpenCode | Yes | `.ai/providers/opencode/agents/<id>.yaml` | `mode`, `model`, `temperature`, `top_p`, `steps`, `disable`, `hidden`, `color`, `permission`, `reasoningEffort`, `textVerbosity`, `reasoningSummary`, `thinking`, `include`, plus any other model option |
+| OpenCode | Yes | `.ai/providers/opencode/agents/<id>.yaml` | `mode`, `model`, `temperature`, `top_p`, `steps`, `disable`, `hidden`, `color`, `permission` (V1), `permissions` (V2), `reasoningEffort`, `textVerbosity`, `reasoningSummary`, `thinking`, `include`, plus any other model option |
 
 ### Generated outputs
 
@@ -1054,6 +1054,20 @@ options:
   disable: false
   hidden: false
   color: accent
+  permissions:
+    - action: edit
+      resource: "*"
+      effect: deny
+    - action: shell
+      resource: "git status *"
+      effect: allow
+```
+
+For OpenCode V1, use `permission` instead:
+
+```yaml
+schema: 1
+options:
   permission:
     edit: deny
     webfetch: ask
@@ -1073,6 +1087,7 @@ options:
 | `hidden` | No | Boolean | Hide the subagent from `@` autocomplete. | — |
 | `color` | No | Hex value, or `primary`, `secondary`, `accent`, `success`, `warning`, `error`, `info` | Display colour. | — |
 | `permission` | No | Mapping | Per-tool permissions. Every key accepts `allow`, `ask` or `deny`; `read`, `edit`, `glob`, `grep`, `list`, `bash`, `task`, `external_directory`, `lsp` and `skill` also accept a glob-pattern map. Which subagents the agent may invoke is `permission.task`; there is no top-level `task` field. | — |
+| `permissions` | No | List of mappings with `action`, `resource`, `effect` | OpenCode V2 ordered permission rules. Use `shell` and `subagent` actions in place of V1's `bash` and `task`; `effect` is `allow`, `ask` or `deny`. | — |
 | `reasoningEffort` | No | String; OpenAI reasoning models accept `low`, `medium`, `high`, `xhigh` | Model option, forwarded to the model provider. | the model provider's own default |
 | `textVerbosity` | No | String; OpenAI reasoning models accept `low`, `medium`, `high` | Model option, forwarded to the model provider. | the model provider's own default |
 | `reasoningSummary` | No | String, such as `auto` | Model option, forwarded to the model provider. Asks an OpenAI reasoning model for a summary of its reasoning. | the model provider's own default |
@@ -1082,8 +1097,8 @@ options:
 Each becomes frontmatter in `.opencode/agents/<id>.md`, after `description`. No
 `name` is written: OpenCode takes the agent name from the filename.
 
-`tools` is not supported: OpenCode documents it as deprecated and directs new
-configuration at `permission`.
+`tools` is not supported: OpenCode V1 documents it as deprecated and directs
+configuration at `permission`; OpenCode V2 uses `permissions`.
 
 The last five are model options: OpenCode does not interpret them, it forwards
 them to whichever model provider the agent uses. They are listed because

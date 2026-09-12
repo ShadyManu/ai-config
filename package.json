@@ -1,6 +1,6 @@
 {
   "name": "ai-config-workspace",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "private": true,
   "description": "Define your AI coding configuration once and keep Claude Code, Codex, GitHub Copilot, and OpenCode automatically synchronized.",
   "license": "MIT",

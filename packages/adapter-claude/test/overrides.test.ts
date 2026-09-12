@@ -93,9 +93,7 @@ describe('Claude agent overrides', () => {
         '---',
         'name: coder',
         'description: Writes code',
-        'tools:',
-        '  - Read',
-        '  - Grep',
+        'tools: Read, Grep',
         'model: sonnet',
         'permissionMode: plan',
         'maxTurns: 8',
@@ -104,6 +102,20 @@ describe('Claude agent overrides', () => {
         'Be careful.',
         '',
       ].join('\n'),
+    );
+  });
+
+  it('renders tool allowlists and denylists as comma-separated inline values', () => {
+    const result = claudeAdapter.compile(
+      CONFIGURATION,
+      overlay('agent', 'coder', {
+        tools: ['Read', 'Grep', 'Glob'],
+        disallowedTools: ['Write', 'Edit'],
+      }),
+    );
+
+    expect(fileAt('.claude/agents/coder.md', result)).toContain(
+      ['tools: Read, Grep, Glob', 'disallowedTools: Write, Edit'].join('\n'),
     );
   });
 

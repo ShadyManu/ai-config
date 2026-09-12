@@ -74,6 +74,30 @@ describe('OpenCode agent overrides', () => {
     );
   });
 
+  it('renders V2 permissions as an ordered list of rules', () => {
+    const result = opencodeAdapter.compile(
+      CONFIGURATION,
+      overlay('agent', 'coder', {
+        permissions: [
+          { action: 'shell', resource: '*', effect: 'ask' },
+          { action: 'shell', resource: 'git status *', effect: 'allow' },
+        ],
+      }),
+    );
+
+    expect(fileAt('.opencode/agents/coder.md', result)).toContain(
+      [
+        'permissions:',
+        '  - action: shell',
+        '    resource: "*"',
+        '    effect: ask',
+        '  - action: shell',
+        '    resource: "git status *"',
+        '    effect: allow',
+      ].join('\n'),
+    );
+  });
+
   it('emits mode: subagent by default and lets an override replace it', () => {
     expect(fileAt('.opencode/agents/coder.md', opencodeAdapter.compile(CONFIGURATION))).toContain(
       'mode: subagent',
@@ -132,14 +156,47 @@ describe('OpenCode override schemas', () => {
     expect(agent?.deprecated?.map((entry) => entry.name)).toEqual(['tools']);
   });
 
-  it('offers a shorthand form for permission so a guided flow can prompt for it', () => {
+  it('accepts both the V1 permission map and V2 ordered permission rules', () => {
     const agent = opencodeAdapter.overrides?.find((schema) => schema.kind === 'agent');
     const permission = agent?.fields.find((field) => field.name === 'permission');
-    expect(permission?.type.kind === 'map' && permission.type.shorthand?.values).toEqual([
-      'allow',
-      'ask',
-      'deny',
-    ]);
+    const permissions = agent?.fields.find((field) => field.name === 'permissions');
+    expect(permission?.type.kind).toBe('map');
+    expect(permissions?.type).toMatchObject({
+      kind: 'map-list',
+      required: ['action', 'resource', 'effect'],
+    });
+
+    const validate = (options: Record<string, unknown>) =>
+      validateOverrideDocument({ schema: 1, options }, OPENCODE_AGENT_OVERRIDE, {
+        provider: 'opencode',
+        sourcePath: '.ai/providers/opencode/agents/coder.yaml',
+      });
+
+    expect(validate({ permission: { edit: 'deny', bash: { '*': 'ask' } } }).diagnostics).toEqual(
+      [],
+    );
+    expect(
+      validate({
+        permissions: [{ action: 'shell', resource: 'git status *', effect: 'allow' }],
+      }).diagnostics,
+    ).toEqual([]);
+  });
+
+  it('rejects a V2 permission rule missing a required field', () => {
+    const result = validateOverrideDocument(
+      {
+        schema: 1,
+        options: { permissions: [{ action: 'edit', effect: 'deny' }] },
+      },
+      OPENCODE_AGENT_OVERRIDE,
+      {
+        provider: 'opencode',
+        sourcePath: '.ai/providers/opencode/agents/coder.yaml',
+      },
+    );
+
+    expect(result.diagnostics.map((entry) => entry.code)).toEqual(['OVERRIDE_VALUE_INVALID']);
+    expect(result.options).toBeUndefined();
   });
 
   it('constrains temperature and top_p to the documented range', () => {
@@ -153,7 +210,7 @@ describe('OpenCode override schemas', () => {
   it('documents every field with a first-party source', () => {
     for (const schema of opencodeAdapter.overrides ?? []) {
       for (const field of schema.fields) {
-        expect(field.documentation).toMatch(/^https:\/\/opencode\.ai\/docs\//);
+        expect(field.documentation).toMatch(/^https:\/\/opencode\.ai\/(?:v2\/)?docs\//);
       }
     }
   });

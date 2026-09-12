@@ -27,7 +27,8 @@ describe('init', () => {
 
     expect(outcome.ok).toBe(true);
     expect(fileSystem.get('.ai/config.yaml')).toBe(
-      '# AI Config canonical configuration.\n' +
+      '# yaml-language-server: $schema=none\n' +
+        '# AI Config canonical configuration.\n' +
         '# Specification: https://github.com/ShadyManu/ai-config/blob/main/docs/specification.md\n' +
         '\n' +
         'schema: 1\n' +
